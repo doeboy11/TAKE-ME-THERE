@@ -37,10 +37,8 @@ Thumbs.db
 
 # Tooling
 .vercel/
-.netlify/
 .sourcemaps/
 
 # Misc
 *.local
 *.cache
-
