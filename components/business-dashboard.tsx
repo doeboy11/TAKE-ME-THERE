@@ -568,47 +568,70 @@ export function BusinessDashboard() {
     } finally {
     setLoading(false)
     }
-  }
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
 
+    // Limit to max 5 total
+    const remainingSlots = Math.max(0, 5 - formData.images.length)
+    const toProcess = Math.min(files.length, remainingSlots)
+    if (toProcess === 0) return
+
     setUploadingImages(true)
-    const newImages: string[] = []
 
-    try {
-    for (let i = 0; i < Math.min(files.length, 5); i++) {
+    // 1) Create local preview URLs immediately
+    const tempUrls: string[] = []
+    for (let i = 0; i < toProcess; i++) {
       const file = files[i]
-      if (file.type.startsWith("image/")) {
-          // Generate a unique filename
-          const fileExt = file.name.split('.').pop()
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-          
-          // Upload to storage and get the blob URL
-          const { data, error } = await businessStore.uploadImage(fileName, file);
-
-          if (error) {
-            console.error('Error uploading image:', error)
-            setFormError(`Failed to upload image: ${error.message || 'Unknown error'}`)
-            continue
-          }
-
-          if (data && data.url) {
-            // Use the blob URL directly
-            newImages.push(data.url)
-          }
+      if (file && file.type.startsWith("image/")) {
+        const tempUrl = URL.createObjectURL(file)
+        tempUrls.push(tempUrl)
       }
     }
 
-    setFormData((prev) => ({
-      ...prev,
-      images: [...prev.images, ...newImages].slice(0, 5),
-    }))
+    // Append temp previews to form state now
+    const baseIndex = formData.images.length
+    setFormData((prev) => ({ ...prev, images: [...prev.images, ...tempUrls].slice(0, 5) }))
+
+    // 2) Upload and replace temp URLs with final public URLs
+    try {
+      for (let i = 0; i < toProcess; i++) {
+        const file = files[i]
+        if (!file || !file.type.startsWith("image/")) continue
+
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+
+        const { data, error } = await businessStore.uploadImage(fileName, file)
+        if (error) {
+          console.error('Error uploading image:', error)
+          setFormError(`Failed to upload image: ${error.message || 'Unknown error'}`)
+          // Keep temp preview visible; move to next
+          continue
+        }
+
+        if (data?.url) {
+          const targetIndex = baseIndex + i
+          setFormData((prev) => {
+            const next = [...prev.images]
+            // Replace the temp blob URL at the corresponding index
+            next[targetIndex] = data.url
+            return { ...prev, images: next }
+          })
+        }
+      }
     } catch (error) {
       console.error('Error uploading images:', error)
       setFormError('Failed to upload images. Please try again.')
     } finally {
-    setUploadingImages(false)
+      // Revoke object URLs to avoid memory leaks
+      setTimeout(() => {
+        tempUrls.forEach((u) => {
+          try { if (u.startsWith('blob:')) URL.revokeObjectURL(u) } catch {}
+        })
+      }, 1000)
+      setUploadingImages(false)
+    }
   }
 
   // Use browser geolocation to fill address and lat/lng
@@ -639,28 +662,24 @@ export function BusinessDashboard() {
       setLocationLoading(false)
     }, { enableHighAccuracy: true, timeout: 15000 })
   }
-  }
 
   const removeImage = async (indexToRemove: number) => {
     const imageToRemove = formData.images[indexToRemove]
     
-    // If it's a Supabase Storage URL, delete the file
-    if (imageToRemove && imageToRemove.includes('supabase.co')) {
+    // If it's a local preview URL, just revoke and skip storage deletion
+    if (imageToRemove?.startsWith('blob:')) {
+      try { URL.revokeObjectURL(imageToRemove) } catch {}
+    } else if (imageToRemove && imageToRemove.includes('supabase.co')) {
+      // If it's a Supabase Storage URL, delete the file
       try {
-        // Extract the file path from the URL
         const urlParts = imageToRemove.split('/')
         const fileName = urlParts[urlParts.length - 1]
-        
-        // Delete from Supabase Storage
-        const { error } = await businessStore.deleteImage(fileName);
-
+        const { error } = await businessStore.deleteImage(fileName)
         if (error) {
           console.error('Error deleting image from storage:', error)
-          // Continue with removal from form even if storage deletion fails
         }
       } catch (error) {
         console.error('Error deleting image:', error)
-        // Continue with removal from form even if storage deletion fails
       }
     }
 
