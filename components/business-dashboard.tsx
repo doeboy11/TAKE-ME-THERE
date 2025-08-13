@@ -363,6 +363,7 @@ export function BusinessDashboard() {
     setFormLoading(true);
     setFormError(null);
     setFormSuccess(null);
+    try {
     if (editingBusiness) {
       // UPDATE
       const { id, ...rest } = editingBusiness;
@@ -371,7 +372,8 @@ export function BusinessDashboard() {
       const { data, error, status } = await businessStore.update(updatedBusiness);
       console.log("Update response:", { data, error, status });
       if (error) {
-        setFormError(error.message);
+        const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Update failed'
+        setFormError(msg);
       } else if (data && data.length > 0) {
         await fetchBusinesses();
         setEditingBusiness(null);
@@ -384,7 +386,7 @@ export function BusinessDashboard() {
           phone: "",
           hours: "",
           description: "",
-          priceRange: "$",
+          priceRange: "",
           lat: undefined,
           lng: undefined,
           images: [],
@@ -421,7 +423,8 @@ export function BusinessDashboard() {
       const { data, error, status } = await businessStore.create(businessToCreate);
       console.log("Insert response:", { data, error, status });
       if (error) {
-        setFormError(error.message);
+        const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Insert failed'
+        setFormError(msg);
       } else if (data && data.length > 0) {
         console.log('🔍 Business created successfully, fetching updated list...')
         await fetchBusinesses();
@@ -469,7 +472,13 @@ export function BusinessDashboard() {
         setFormError("Insert failed. No data returned.");
       }
     }
-    setFormLoading(false);
+    } catch (err) {
+      console.error('handleSubmit exception:', err)
+      const msg = (err as any)?.message || 'Unexpected error'
+      setFormError(msg)
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   // EDIT business

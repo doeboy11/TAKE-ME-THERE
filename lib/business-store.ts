@@ -125,6 +125,113 @@ class BusinessStore {
       return supabase
     }
   }
+
+  /**
+   * Create a new business with approval_status='pending' for the current user.
+   * Maps form fields to DB columns and returns Supabase-style { data, error, status }.
+   */
+  async create(input: any): Promise<{ data: any[] | null; error: any; status?: number }> {
+    try {
+      const supa = this.getSupabaseClient()
+      const { data: userData, error: userError } = await supa.auth.getUser()
+      if (userError || !userData?.user?.id) {
+        return { data: null, error: { message: 'Not authenticated' }, status: 401 }
+      }
+      const userId = userData.user.id
+
+      // Column mapping
+      const row: any = {
+        name: input.name,
+        category: input.category,
+        description: input.description,
+        address: input.address,
+        phone: input.phone,
+        hours: input.hours,
+        price_range: input.priceRange || input.price_range || null,
+        latitude: input.lat ?? input.latitude ?? null,
+        longitude: input.lng ?? input.longitude ?? null,
+        website: input.website ?? null,
+        email: input.email ?? null,
+        owner_email: input.owner_email ?? null,
+        owner_name: input.owner_name ?? null,
+        approval_status: 'pending',
+      }
+
+      // Owner column can be owner_id or ownerId depending on schema; set both defensively
+      row.owner_id = userId
+      row.ownerId = userId
+
+      const { data, error, status } = await supa
+        .from('businesses')
+        .insert([row])
+        .select('*')
+
+      return { data: (data as any[]) || null, error, status }
+    } catch (error) {
+      return { data: null, error }
+    }
+  }
+
+  /**
+   * Update an existing business owned by the current user.
+   * Ensures ownership and maps fields similarly to create().
+   */
+  async update(input: any): Promise<{ data: any[] | null; error: any; status?: number }> {
+    try {
+      const supa = this.getSupabaseClient()
+      const { data: userData, error: userError } = await supa.auth.getUser()
+      if (userError || !userData?.user?.id) {
+        return { data: null, error: { message: 'Not authenticated' }, status: 401 }
+      }
+      const userId = userData.user.id
+
+      const id = input.id
+      if (!id) return { data: null, error: { message: 'Missing business id' }, status: 400 }
+
+      // Determine owner column by probing once
+      let ownerColumn = 'owner_id'
+      try {
+        const { data: colCheck } = await supabase
+          .from('information_schema.columns')
+          .select('column_name')
+          .eq('table_name', 'businesses')
+          .in('column_name', ['owner_id', 'ownerId'])
+        const names = (colCheck as any[])?.map(c => c.column_name) || []
+        ownerColumn = names.includes('owner_id') ? 'owner_id' : (names.includes('ownerId') ? 'ownerId' : 'owner_id')
+      } catch {}
+
+      // Only update allowed fields
+      const patch: any = {
+        name: input.name,
+        category: input.category,
+        description: input.description,
+        address: input.address,
+        phone: input.phone,
+        hours: input.hours,
+        price_range: input.priceRange ?? input.price_range,
+        latitude: input.lat ?? input.latitude,
+        longitude: input.lng ?? input.longitude,
+        website: input.website,
+        email: input.email,
+        owner_email: input.owner_email,
+        owner_name: input.owner_name,
+      }
+
+      // Remove undefined keys to avoid overwriting with null unintentionally
+      Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k])
+
+      const { data, error, status } = await supa
+        .from('businesses')
+        .update(patch)
+        .eq('id', id)
+        .eq(ownerColumn as any, userId)
+        .select('*')
+
+      return { data: (data as any[]) || null, error, status }
+    } catch (error) {
+      return { data: null, error }
+    }
+  }
   
   /**
    * Delete a business that belongs to the currently signed-in owner.
