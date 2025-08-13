@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useAuth } from "@/lib/auth"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabaseClient"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,8 +30,7 @@ export default function LoginPage() {
     setError("")
     const success = await login(email, password)
     if (success) {
-      // Fetch the authenticated user and check role from metadata using helper client (cookie-based)
-      const supabase = createClientComponentClient()
+      // Fetch the authenticated user and check role from metadata using shared client
       const { data } = await supabase.auth.getUser()
       const role = (data.user?.app_metadata as any)?.role || (data.user?.user_metadata as any)?.role
       router.push(role === 'admin' ? "/admin" : "/dashboard")

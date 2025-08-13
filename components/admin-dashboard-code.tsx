@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle, XCircle, AlertCircle, Clock, Eye, MapPin, Phone, Mail, Globe, Shield, LogOut, Home, Building } from "lucide-react"
 import Logo from './logo'
 import { businessStore } from "@/lib/business-store"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabaseClient"
+
 import type { Business } from "@/lib/business-store"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -35,9 +36,9 @@ export function AdminDashboardCode() {
   useEffect(() => {
     const checkAdmin = async () => {
       try {
-        const supabase = createClientComponentClient()
         const { data } = await supabase.auth.getUser()
         const user = data.user
+
         if (!user) {
           setIsAdmin(false)
           return
@@ -61,7 +62,6 @@ export function AdminDashboardCode() {
 
   const handleLogout = async () => {
     try {
-      const supabase = createClientComponentClient()
       await supabase.auth.signOut()
     } catch {}
     window.location.href = "/login"

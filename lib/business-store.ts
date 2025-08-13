@@ -14,7 +14,6 @@
  */
 
 import { supabase } from './supabaseClient'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 // Debug: Check if environment variables are loaded
 console.log('🔍 Checking Supabase configuration...')
@@ -118,13 +117,6 @@ function getBusinessImageUrl(imageUrl: string): string {
 // Business Store class
 // ==============================
 class BusinessStore {
-  private getSupabaseClient() {
-    try {
-      return createClientComponentClient()
-    } catch {
-      return supabase
-    }
-  }
 
   /**
    * Create a new business with approval_status='pending' for the current user.
@@ -132,7 +124,7 @@ class BusinessStore {
    */
   async create(input: any): Promise<{ data: any[] | null; error: any; status?: number }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
       const { data: userData, error: userError } = await supa.auth.getUser()
       if (userError || !userData?.user?.id) {
         return { data: null, error: { message: 'Not authenticated' }, status: 401 }
@@ -166,6 +158,24 @@ class BusinessStore {
         .insert([row])
         .select('*')
 
+      // If created successfully and we have images, persist them
+      if (!error && data && data.length > 0 && Array.isArray(input.images) && input.images.length > 0) {
+        const businessId = (data[0] as any).id
+        const imageRows = (input.images as string[])
+          .filter(Boolean)
+          .slice(0, 5)
+          .map((url: string, idx: number) => ({
+            business_id: businessId,
+            image_url: url,
+            is_primary: idx === 0,
+          }))
+        try {
+          await supa.from('business_images').insert(imageRows)
+        } catch (imgErr) {
+          console.warn('create(): failed to insert business_images rows:', imgErr)
+        }
+      }
+
       return { data: (data as any[]) || null, error, status }
     } catch (error) {
       return { data: null, error }
@@ -178,7 +188,7 @@ class BusinessStore {
    */
   async update(input: any): Promise<{ data: any[] | null; error: any; status?: number }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
       const { data: userData, error: userError } = await supa.auth.getUser()
       if (userError || !userData?.user?.id) {
         return { data: null, error: { message: 'Not authenticated' }, status: 401 }
@@ -227,6 +237,27 @@ class BusinessStore {
         .eq(ownerColumn as any, userId)
         .select('*')
 
+      // If update succeeded, sync images if provided
+      if (!error && Array.isArray(input.images)) {
+        try {
+          // Clear existing images for this business
+          await supa.from('business_images').delete().eq('business_id', id)
+          const imageRows = (input.images as string[])
+            .filter(Boolean)
+            .slice(0, 5)
+            .map((url: string, idx: number) => ({
+              business_id: id,
+              image_url: url,
+              is_primary: idx === 0,
+            }))
+          if (imageRows.length > 0) {
+            await supa.from('business_images').insert(imageRows)
+          }
+        } catch (imgErr) {
+          console.warn('update(): failed to sync business_images rows:', imgErr)
+        }
+      }
+
       return { data: (data as any[]) || null, error, status }
     } catch (error) {
       return { data: null, error }
@@ -243,7 +274,7 @@ class BusinessStore {
    */
   async delete(businessId: string): Promise<{ error: any }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
 
       // 1) Auth check
       const { data: userData, error: userError } = await supa.auth.getUser()
@@ -458,7 +489,7 @@ class BusinessStore {
     try {
       const { data, error } = await supabase
         .from('businesses')
-        .select('id, name, category, description, address, phone, hours, owner_email, owner_name, email, approval_status, created_at, updated_at')
+        .select('*')
         .eq('approval_status', 'rejected')
         .order('created_at', { ascending: false })
 
@@ -471,6 +502,58 @@ class BusinessStore {
     } catch (error) {
       console.error('Error fetching rejected businesses:', error)
       return []
+    }
+  }
+
+  /**
+   * Admin action: approve a business
+   */
+  async approveBusiness(businessId: string, notes?: string): Promise<boolean> {
+    try {
+      const patch: any = {
+        approval_status: 'approved',
+      }
+      if (typeof notes === 'string') {
+        patch.admin_notes = notes
+      }
+      const { error } = await supabase
+        .from('businesses')
+        .update(patch)
+        .eq('id', businessId)
+      if (error) {
+        console.error('approveBusiness():', error)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error('approveBusiness() exception:', error)
+      return false
+    }
+  }
+
+  /**
+   * Admin action: reject a business
+   */
+  async rejectBusiness(businessId: string, notes?: string): Promise<boolean> {
+    try {
+      const patch: any = {
+        approval_status: 'rejected',
+      }
+      if (typeof notes === 'string') {
+        patch.admin_notes = notes
+      }
+      const { error } = await supabase
+        .from('businesses')
+        .update(patch)
+        .eq('id', businessId)
+      if (error) {
+        console.error('rejectBusiness():', error)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error('rejectBusiness() exception:', error)
+      return false
     }
   }
 
@@ -742,7 +825,7 @@ class BusinessStore {
   // Mock storage methods for compatibility (for image uploads)
   async uploadImage(fileName: string, file: File): Promise<{ data: { url: string; path: string } | null, error: any }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
       const bucketCandidates = ['business-images', 'public', 'images']
       let uploadedPath: string | null = null
       const errors: Array<{ bucket: string; message: string }> = []
@@ -776,7 +859,7 @@ class BusinessStore {
 
   getPublicUrl(fileName: string): { data: { publicUrl: string } | null } {
     if (!fileName) return { data: null }
-    const supa = this.getSupabaseClient()
+    const supa = supabase
     const bucketCandidates = ['business-images', 'public', 'images']
     for (const bucket of bucketCandidates) {
       const { data } = supa.storage.from(bucket).getPublicUrl(fileName)
@@ -787,7 +870,7 @@ class BusinessStore {
 
   async deleteImage(fileName: string): Promise<{ error: any }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
       const bucketCandidates = ['business-images', 'public', 'images']
       for (const bucket of bucketCandidates) {
         const { error } = await supa.storage.from(bucket).remove([fileName])
@@ -801,7 +884,7 @@ class BusinessStore {
 
   async deleteImages(fileNames: string[]): Promise<{ error: any }> {
     try {
-      const supa = this.getSupabaseClient()
+      const supa = supabase
       const bucketCandidates = ['business-images', 'public', 'images']
       for (const bucket of bucketCandidates) {
         const { error } = await supa.storage.from(bucket).remove(fileNames)
