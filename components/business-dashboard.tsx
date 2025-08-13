@@ -363,77 +363,31 @@ export function BusinessDashboard() {
     setFormLoading(true);
     setFormError(null);
     setFormSuccess(null);
+    // Prevent submit while images are still uploading or when blob URLs are present
+    const hasBlobImages = (formData.images || []).some((u) => typeof u === 'string' && u.startsWith('blob:'))
+    if (uploadingImages || hasBlobImages) {
+      setFormError('Please wait for images to finish uploading before submitting.');
+      setFormLoading(false);
+      return;
+    }
     try {
-    if (editingBusiness) {
-      // UPDATE
-      const { id, ...rest } = editingBusiness;
-      const { lat: _lat, lng: _lng, ...safeForm } = formData;
-      const updatedBusiness = { ...safeForm, id: editingBusiness.id };
-      const { data, error, status } = await businessStore.update(updatedBusiness);
-      console.log("Update response:", { data, error, status });
-      if (error) {
-        const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Update failed'
-        setFormError(msg);
-      } else if (data && data.length > 0) {
-        await fetchBusinesses();
-        setEditingBusiness(null);
-        setShowAddForm(false);
-        setFormSuccess("Business updated successfully!");
-        setFormData({
-          name: "",
-          category: "",
-          address: "",
-          phone: "",
-          hours: "",
-          description: "",
-          priceRange: "",
-          lat: undefined,
-          lng: undefined,
-          images: [],
-          website: "",
-          email: "",
-          foundedYear: "",
-          employeeCount: "",
-          specialties: [],
-          awards: "",
-          aboutCompany: "",
-          mission: "",
-          services: [],
-          amenities: [],
-          paymentMethods: [],
-          languages: [],
-          accessibility: false,
-          parking: false,
-          wifi: false,
-          socialMedia: {
-            facebook: "",
-            instagram: "",
-            twitter: "",
-            linkedin: "",
-          },
-        });
-      } else {
-        setFormError("Update failed. No data returned.");
-      }
-    } else {
-      // CREATE
-      // Always set approval_status to 'pending' for new businesses
-      const businessToCreate = { ...formData, ownerId: user?.id, approval_status: 'pending' };
-      console.log('🔍 Creating new business with data:', businessToCreate)
-      const { data, error, status } = await businessStore.create(businessToCreate);
-      console.log("Insert response:", { data, error, status });
-      if (error) {
-        const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Insert failed'
-        setFormError(msg);
-      } else if (data && data.length > 0) {
-        console.log('🔍 Business created successfully, fetching updated list...')
-        await fetchBusinesses();
-        setFormSuccess("Business submitted for approval! We'll review it and get back to you soon.");
-        
-        // Show success message for 3 seconds before closing form
-        setTimeout(() => {
+      if (editingBusiness) {
+        // UPDATE
+        const { id, ...rest } = editingBusiness;
+        const { lat: _lat, lng: _lng, ...safeForm } = formData;
+        // Ensure only persisted (non-blob) URLs are sent
+        const imagesClean = (safeForm.images || []).filter((u) => typeof u === 'string' && !u.startsWith('blob:'))
+        const updatedBusiness = { ...safeForm, images: imagesClean, id: editingBusiness.id };
+        const { data, error, status } = await businessStore.update(updatedBusiness);
+        console.log("Update response:", { data, error, status });
+        if (error) {
+          const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Update failed'
+          setFormError(msg);
+        } else if (data && data.length > 0) {
+          await fetchBusinesses();
+          setEditingBusiness(null);
           setShowAddForm(false);
-          setFormSuccess(null);
+          setFormSuccess("Business updated successfully!");
           setFormData({
             name: "",
             category: "",
@@ -441,7 +395,7 @@ export function BusinessDashboard() {
             phone: "",
             hours: "",
             description: "",
-            priceRange: "$",
+            priceRange: "",
             lat: undefined,
             lng: undefined,
             images: [],
@@ -467,11 +421,67 @@ export function BusinessDashboard() {
               linkedin: "",
             },
           });
-        }, 3000);
+        } else {
+          setFormError("Update failed. No data returned.");
+        }
       } else {
-        setFormError("Insert failed. No data returned.");
+        // CREATE
+        // Always set approval_status to 'pending' for new businesses
+        // Ensure only persisted (non-blob) URLs are sent
+        const imagesClean = (formData.images || []).filter((u) => typeof u === 'string' && !u.startsWith('blob:'))
+        const businessToCreate = { ...formData, images: imagesClean, ownerId: user?.id, approval_status: 'pending' };
+        console.log('🔍 Creating new business with data:', businessToCreate)
+        const { data, error, status } = await businessStore.create(businessToCreate);
+        console.log("Insert response:", { data, error, status });
+        if (error) {
+          const msg = (error as any)?.message || (error as any)?.hint || (error as any)?.details || 'Insert failed'
+          setFormError(msg);
+        } else if (data && data.length > 0) {
+          console.log('🔍 Business created successfully, fetching updated list...')
+          await fetchBusinesses();
+          setFormSuccess("Business submitted for approval! We'll review it and get back to you soon.");
+          // Show success message for 3 seconds before closing form
+          setTimeout(() => {
+            setShowAddForm(false);
+            setFormSuccess(null);
+            setFormData({
+              name: "",
+              category: "",
+              address: "",
+              phone: "",
+              hours: "",
+              description: "",
+              priceRange: "$",
+              lat: undefined,
+              lng: undefined,
+              images: [],
+              website: "",
+              email: "",
+              foundedYear: "",
+              employeeCount: "",
+              specialties: [],
+              awards: "",
+              aboutCompany: "",
+              mission: "",
+              services: [],
+              amenities: [],
+              paymentMethods: [],
+              languages: [],
+              accessibility: false,
+              parking: false,
+              wifi: false,
+              socialMedia: {
+                facebook: "",
+                instagram: "",
+                twitter: "",
+                linkedin: "",
+              },
+            });
+          }, 3000);
+        } else {
+          setFormError("Insert failed. No data returned.");
+        }
       }
-    }
     } catch (err) {
       console.error('handleSubmit exception:', err)
       const msg = (err as any)?.message || 'Unexpected error'
@@ -1645,7 +1655,6 @@ export function BusinessDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
-        </div>
       </div>
     </div>
   )
