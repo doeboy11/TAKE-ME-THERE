@@ -1,3 +1,15 @@
+/**
+ * Main Search & Listing Page
+ * Responsibilities:
+ * - Fetch and display approved businesses (`businessStore.getApprovedBusinesses()`)
+ * - Provide search/filter (query, category, distance, rating) and list/map toggle
+ * - Handle selection, pagination, and lightweight analytics (track visits)
+ *
+ * Notes for future edits:
+ * - Avoid logic changes in this file unless needed; prefer updating `lib/business-store.ts`
+ * - Images come from `business.images` (array) or `business.image` (primary) with safe fallbacks
+ * - `filteredBusinesses` should be initialized from fetched results to render initial list
+ */
 "use client"
 
 import { useState, useEffect, useRef } from "react"

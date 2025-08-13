@@ -528,7 +528,8 @@ export function BusinessDashboard() {
 
       if (deleteError) {
         console.error('Error deleting business:', deleteError)
-        setFormError('Failed to delete business. Please try again.')
+        const msg = (deleteError as any)?.message || (deleteError as any)?.hint || (deleteError as any)?.details || JSON.stringify(deleteError)
+        setFormError(`Failed to delete business: ${msg}`)
         return
       }
 

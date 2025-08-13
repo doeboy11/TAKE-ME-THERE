@@ -125,6 +125,66 @@ class BusinessStore {
       return supabase
     }
   }
+  
+  /**
+   * Delete a business that belongs to the currently signed-in owner.
+   * Steps:
+   * 1) Verify user is signed in and owns the business (supports owner_id or ownerId)
+   * 2) Delete related images from Supabase Storage and `business_images` table
+   * 3) Delete related reviews
+   * 4) Delete the business row
+   */
+  async delete(businessId: string): Promise<{ error: any }> {
+    try {
+      const supa = this.getSupabaseClient()
+
+      // 1) Auth check
+      const { data: userData, error: userError } = await supa.auth.getUser()
+      if (userError || !userData?.user?.id) {
+        return { error: { message: 'Not authenticated' } }
+      }
+      const userId = userData.user.id
+
+      // 2) Load business with owner and image rows
+      // Select both owner_id and ownerId to be resilient to column naming
+      const { data: biz, error: bizError } = await supa
+        .from('businesses')
+        .select(`id, owner_id, ownerId, business_images ( image_url )`)
+        .eq('id', businessId)
+        .single()
+
+      if (bizError || !biz) {
+        return { error: bizError || { message: 'Business not found' } }
+      }
+
+      const ownerColumn = (biz as any).owner_id ?? (biz as any).ownerId
+      if (!ownerColumn || ownerColumn !== userId) {
+        return { error: { message: 'Not authorized to delete this business' } }
+      }
+
+      // 3) Attempt to delete images from storage first (best-effort)
+      const fileNames: string[] = (biz as any).business_images?.map((img: any) => img.image_url).filter(Boolean) || []
+      if (fileNames.length > 0) {
+        // Ignore storage errors here; table deletions will still proceed
+        await this.deleteImages(fileNames)
+      }
+
+      // 4) Delete dependent rows (business_images, reviews)
+      // If you have ON DELETE CASCADE, these may be optional, but we include for safety with RLS
+      await supa.from('business_images').delete().eq('business_id', businessId)
+      await supa.from('reviews').delete().eq('business_id', businessId)
+
+      // 5) Delete business
+      const { error: deleteError } = await supa.from('businesses').delete().eq('id', businessId)
+      if (deleteError) {
+        return { error: deleteError }
+      }
+
+      return { error: null }
+    } catch (error) {
+      return { error }
+    }
+  }
   /**
    * Get all businesses regardless of approval status.
    * Maps storage image paths to public URLs and normalizes lat/lng.

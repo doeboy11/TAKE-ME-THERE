@@ -1,3 +1,9 @@
+// App Root Layout
+// Purpose: Defines the HTML skeleton, global fonts, and wraps the app with shared providers.
+// Notes:
+// - `Providers` is where global contexts (e.g., theme, auth) are mounted.
+// - Geist fonts are applied via inline <style> for consistent font variables.
+// - Keep this file light; avoid heavy logic here.
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
@@ -18,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Inline font variables so they are available globally */}
         <style>{`
 html {
   font-family: ${GeistSans.style.fontFamily};
@@ -27,6 +34,7 @@ html {
         `}</style>
       </head>
       <body>
+        {/* Global providers (theme, auth, etc.) wrap the entire app */}
         <Providers>
           {children}
         </Providers>

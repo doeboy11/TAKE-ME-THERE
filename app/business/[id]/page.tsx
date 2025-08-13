@@ -1,3 +1,15 @@
+/**
+ * Business Detail Page
+ * Responsibilities:
+ * - Fetch a single business by id via `businessStore.getById()` and render full details
+ * - Provide image gallery, reviews, and quick contact/actions
+ * - Track a lightweight view via `businessStore.trackView()` (fire-and-forget)
+ *
+ * Notes for future edits:
+ * - Do not change data-shaping here; prefer mapping inside `lib/business-store.ts`
+ * - `images` is an array of public URLs; `image` is the primary thumbnail
+ * - Keep loading/error states explicit to avoid hydration issues
+ */
 "use client"
 
 import { useState, useEffect } from "react"
