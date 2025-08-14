@@ -112,16 +112,38 @@ export function AdminDashboardCode() {
     setProcessing(true)
     try {
       console.log('Attempting to approve business via Supabase UPDATE:', businessId)
-      const { error } = await supabase
+      const payload: any = {
+        // cover both possible schemas
+        approval_status: 'approved',
+        approvalStatus: 'approved',
+        status: 'Approved',
+        approved_at: new Date().toISOString(),
+        admin_notes: adminNotes || null,
+      }
+      const { data, error } = await supabase
         .from('businesses')
-        .update({ approval_status: 'approved' })
+        .update(payload)
         .eq('id', businessId)
+        .select('*')
 
       if (error) {
         console.error('Supabase approve UPDATE error:', error)
         return
       }
-      await fetchAllBusinesses()
+
+      // Optimistic local state update to reflect immediately
+      setPendingBusinesses(prev => prev.filter(b => b.id !== businessId))
+      setApprovedBusinesses(prev => {
+        const updated = (data as any[] && data.length > 0) ? (data[0] as Business) : (pendingBusinesses.find(b => b.id === businessId) as Business)
+        // Ensure status fields reflect change in UI
+        if (updated) {
+          (updated as any).approval_status = 'approved'
+          ;(updated as any).status = 'Approved'
+        }
+        return updated ? [updated, ...prev] : prev
+      })
+      // Refresh counts in background
+      void fetchAllBusinesses()
       console.log(`Business ${businessId} approved`)
     } catch (error) {
       console.error('Error approving business:', error)
@@ -134,16 +156,36 @@ export function AdminDashboardCode() {
     setProcessing(true)
     try {
       console.log('Attempting to reject business via Supabase UPDATE:', businessId)
-      const { error } = await supabase
+      const payload: any = {
+        approval_status: 'rejected',
+        approvalStatus: 'rejected',
+        status: 'Rejected',
+        rejected_at: new Date().toISOString(),
+        admin_notes: adminNotes || null,
+      }
+      const { data, error } = await supabase
         .from('businesses')
-        .update({ approval_status: 'rejected' })
+        .update(payload)
         .eq('id', businessId)
+        .select('*')
 
       if (error) {
         console.error('Supabase reject UPDATE error:', error)
         return
       }
-      await fetchAllBusinesses()
+
+      // Optimistic local state update to reflect immediately
+      setPendingBusinesses(prev => prev.filter(b => b.id !== businessId))
+      setRejectedBusinesses(prev => {
+        const updated = (data as any[] && data.length > 0) ? (data[0] as Business) : (pendingBusinesses.find(b => b.id === businessId) as Business)
+        if (updated) {
+          (updated as any).approval_status = 'rejected'
+          ;(updated as any).status = 'Rejected'
+        }
+        return updated ? [updated, ...prev] : prev
+      })
+      // Refresh counts in background
+      void fetchAllBusinesses()
       console.log(`Business ${businessId} rejected`)
     } catch (error) {
       console.error('Error rejecting business:', error)
