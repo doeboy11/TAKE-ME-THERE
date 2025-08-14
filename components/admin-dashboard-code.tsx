@@ -111,12 +111,18 @@ export function AdminDashboardCode() {
   const handleApprove = async (businessId: string) => {
     setProcessing(true)
     try {
-      const success = await businessStore.approveBusiness(businessId)
-      if (success) {
-        // Refresh the list
-        await fetchAllBusinesses()
-        console.log(`Business ${businessId} approved`)
+      console.log('Attempting to approve business via Supabase UPDATE:', businessId)
+      const { error } = await supabase
+        .from('businesses')
+        .update({ approval_status: 'approved' })
+        .eq('id', businessId)
+
+      if (error) {
+        console.error('Supabase approve UPDATE error:', error)
+        return
       }
+      await fetchAllBusinesses()
+      console.log(`Business ${businessId} approved`)
     } catch (error) {
       console.error('Error approving business:', error)
     } finally {
@@ -127,12 +133,18 @@ export function AdminDashboardCode() {
   const handleReject = async (businessId: string) => {
     setProcessing(true)
     try {
-      const success = await businessStore.rejectBusiness(businessId)
-      if (success) {
-        // Refresh the list
-        await fetchAllBusinesses()
-        console.log(`Business ${businessId} rejected`)
+      console.log('Attempting to reject business via Supabase UPDATE:', businessId)
+      const { error } = await supabase
+        .from('businesses')
+        .update({ approval_status: 'rejected' })
+        .eq('id', businessId)
+
+      if (error) {
+        console.error('Supabase reject UPDATE error:', error)
+        return
       }
+      await fetchAllBusinesses()
+      console.log(`Business ${businessId} rejected`)
     } catch (error) {
       console.error('Error rejecting business:', error)
     } finally {
