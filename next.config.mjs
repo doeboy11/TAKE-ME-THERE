@@ -8,6 +8,14 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    // Allow images served from Supabase Storage
+    domains: [
+      'zsypjqjmdkamowykryiy.supabase.co',
+    ],
+    // Alternatively, you can use remotePatterns instead of domains:
+    // remotePatterns: [
+    //   { protocol: 'https', hostname: 'zsypjqjmdkamowykryiy.supabase.co' },
+    // ],
   },
 }
 
