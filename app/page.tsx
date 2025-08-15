@@ -75,6 +75,7 @@ function LocalBusinessSearchContent() {
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [compactHeader, setCompactHeader] = useState(false);
   const searchDebounceRef = useRef<number | undefined>(undefined);
+  const searchSectionRef = useRef<HTMLDivElement>(null);
 
   // Derived primitive values for stable effect dependencies
   const maxDistanceValue = (Array.isArray(maxDistance) && maxDistance.length > 0 ? maxDistance[0] : 5)
@@ -579,7 +580,42 @@ function LocalBusinessSearchContent() {
 
           {/* Inline search in compact mode */}
           <div className={`mt-3 transition-all duration-300 ${compactHeader ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none h-0 overflow-hidden'} `}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Mobile compact icons */}
+            <div className="flex items-center gap-2 sm:hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open search"
+                className="rounded-full"
+                onClick={() => {
+                  searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Use my location"
+                className="rounded-full"
+                disabled={gettingLocation}
+                onClick={getCurrentLocation}
+              >
+                {gettingLocation ? <Loader2 className="h-5 w-5 animate-spin" /> : <Navigation className="h-5 w-5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open filters"
+                className="rounded-full"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Filter className="h-5 w-5" />
+              </Button>
+            </div>
+
+            {/* Full inputs for sm+ */}
+            <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="sm:col-span-2 lg:col-span-1">
                 <SearchAutocomplete
                   businesses={allBusinesses as any}
@@ -711,7 +747,7 @@ function LocalBusinessSearchContent() {
             )}
 
             {/* Search Section */}
-            <div className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/50 p-6 sm:p-8 mb-8 transition-all duration-300 ease-in-out ${compactHeader ? 'opacity-0 -translate-y-2 pointer-events-none hidden md:block' : 'opacity-100 translate-y-0'}`}>
+            <div ref={searchSectionRef} className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/50 p-6 sm:p-8 mb-8 transition-all duration-300 ease-in-out ${compactHeader ? 'opacity-0 -translate-y-2 pointer-events-none hidden md:block' : 'opacity-100 translate-y-0'}`}>
               <div className="space-y-6">
                 {/* Main Search Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

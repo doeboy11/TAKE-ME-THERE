@@ -206,17 +206,19 @@ class BusinessStore {
       const id = input.id
       if (!id) return { data: null, error: { message: 'Missing business id' }, status: 400 }
 
-      // Determine owner column by probing once
-      let ownerColumn = 'owner_id'
-      try {
-        const { data: colCheck } = await supabase
-          .from('information_schema.columns')
-          .select('column_name')
-          .eq('table_name', 'businesses')
-          .in('column_name', ['owner_id', 'ownerId'])
-        const names = (colCheck as any[])?.map(c => c.column_name) || []
-        ownerColumn = names.includes('owner_id') ? 'owner_id' : (names.includes('ownerId') ? 'ownerId' : 'owner_id')
-      } catch {}
+      // Verify ownership without querying system schemas: load row and compare
+      const { data: existing, error: loadErr } = await supa
+        .from('businesses')
+        .select('id, owner_id, ownerId')
+        .eq('id', id)
+        .single()
+      if (loadErr || !existing) {
+        return { data: null, error: loadErr || { message: 'Business not found' }, status: 404 }
+      }
+      const ownerValue = (existing as any).owner_id ?? (existing as any).ownerId
+      if (!ownerValue || ownerValue !== userId) {
+        return { data: null, error: { message: 'Not authorized to update this business' }, status: 403 }
+      }
 
       // Only update allowed fields
       const patch: any = {
@@ -242,7 +244,6 @@ class BusinessStore {
         .from('businesses')
         .update(patch)
         .eq('id', id)
-        .eq(ownerColumn as any, userId)
         .select('*')
 
       // If update succeeded, sync images if provided
@@ -618,21 +619,11 @@ class BusinessStore {
     try {
       console.log('🔍 getByOwnerId called with ownerId:', ownerId)
       
-      // First, check which column exists in the database
-      const { data: columnCheck, error: columnError } = await supabase
-        .from('information_schema.columns')
-        .select('column_name')
-        .eq('table_name', 'businesses')
-        .in('column_name', ['owner_id', 'ownerId'])
-
-      let columnName = 'owner_id' // default
-      if (!columnError && columnCheck && columnCheck.length > 0) {
-        const hasOwnerId = columnCheck.some(col => col.column_name === 'ownerId')
-        columnName = hasOwnerId ? 'ownerId' : 'owner_id'
-        console.log(`🔍 Using ${columnName} column for query`)
-      }
-
-      const { data, error } = await supabase
+      // Try querying by owner_id first; if it errors (column missing), try ownerId
+      let combined: any[] = []
+      let lastError: any = null
+      // Attempt 1: owner_id
+      const { data: byOwnerId, error: err1 } = await supabase
         .from('businesses')
         .select(`
           id,
@@ -652,14 +643,50 @@ class BusinessStore {
           updated_at,
           business_images (image_url, is_primary)
         `)
-        .eq(columnName as any, ownerId)
+        .eq('owner_id' as any, ownerId)
         .order('created_at', { ascending: false })
+      if (!err1 && byOwnerId) combined = combined.concat(byOwnerId)
+      else lastError = err1
 
-      if (error) {
-        return { data: null, error }
+      // Attempt 2: ownerId (camelCase)
+      const { data: byOwnerCamel, error: err2 } = await supabase
+        .from('businesses')
+        .select(`
+          id,
+          name,
+          category,
+          description,
+          address,
+          phone,
+          hours,
+          latitude,
+          longitude,
+          owner_email,
+          owner_name,
+          email,
+          approval_status,
+          created_at,
+          updated_at,
+          business_images (image_url, is_primary)
+        `)
+        .eq('ownerId' as any, ownerId)
+        .order('created_at', { ascending: false })
+      if (!err2 && byOwnerCamel) combined = combined.concat(byOwnerCamel)
+      else if (!combined.length) lastError = lastError || err2
+
+      if (!combined.length && lastError) {
+        return { data: null, error: lastError }
       }
 
-      const businessesWithImages = (data || []).map((business: any) => {
+      // Deduplicate by id
+      const seen = new Set<string>()
+      const deduped = combined.filter((b) => {
+        if (seen.has(b.id)) return false
+        seen.add(b.id)
+        return true
+      })
+
+      const businessesWithImages = deduped.map((business: any) => {
         const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || []
         const image = business.business_images?.find((img: any) => img.is_primary)?.image_url
         return {
