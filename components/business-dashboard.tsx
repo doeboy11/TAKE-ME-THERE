@@ -363,10 +363,17 @@ export function BusinessDashboard() {
     setFormLoading(true);
     setFormError(null);
     setFormSuccess(null);
-    // Prevent submit while images are still uploading or when blob URLs are present
-    const hasBlobImages = (formData.images || []).some((u) => typeof u === 'string' && u.startsWith('blob:'))
-    if (uploadingImages || hasBlobImages) {
+    // Prevent submit while images are still uploading
+    if (uploadingImages) {
       setFormError('Please wait for images to finish uploading before submitting.');
+      setFormLoading(false);
+      return;
+    }
+    
+    // Check if there are any blob URLs that haven't been replaced yet
+    const hasBlobImages = (formData.images || []).some((u) => typeof u === 'string' && u.startsWith('blob:'))
+    if (hasBlobImages) {
+      setFormError('Some images are still processing. Please wait a moment and try again.');
       setFormLoading(false);
       return;
     }
@@ -429,6 +436,12 @@ export function BusinessDashboard() {
         // Always set approval_status to 'pending' for new businesses
         // Ensure only persisted (non-blob) URLs are sent
         const imagesClean = (formData.images || []).filter((u) => typeof u === 'string' && !u.startsWith('blob:'))
+        console.log('🔍 Image processing debug:', {
+          totalImages: formData.images.length,
+          cleanImages: imagesClean.length,
+          allImages: formData.images,
+          cleanedImages: imagesClean
+        });
         const businessToCreate = { ...formData, images: imagesClean, ownerId: user?.id, approval_status: 'pending' };
         console.log('🔍 Creating new business with data:', businessToCreate)
         const { data, error, status } = await businessStore.create(businessToCreate);
@@ -623,10 +636,12 @@ export function BusinessDashboard() {
 
         if (data?.url) {
           const targetIndex = baseIndex + i
+          console.log(`🔍 Replacing temp URL at index ${targetIndex} with: ${data.url}`)
           setFormData((prev) => {
             const next = [...prev.images]
             // Replace the temp blob URL at the corresponding index
             next[targetIndex] = data.url
+            console.log('🔍 Updated images array:', next)
             return { ...prev, images: next }
           })
         }
