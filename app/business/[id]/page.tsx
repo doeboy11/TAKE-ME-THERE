@@ -174,24 +174,25 @@ function BusinessDetailPageContent() {
               Back to Search
             </Button>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  try { await businessStore.trackContact(business.id, 'phone') } catch {}
-                  window.open(`tel:${business.phone}`)
-                }}
-              >
-                <Phone className="w-4 h-4 mr-2" />
-                Call Now
+              <Button variant="outline" asChild>
+                <a
+                  href={`tel:${business.phone}`}
+                  onClick={async () => { try { await businessStore.trackContact(business.id, 'phone') } catch {} }}
+                >
+                  <Phone className="w-4 h-4 mr-2" />
+                  Call {business.phone}
+                </a>
               </Button>
-              <Button
-                onClick={async () => {
-                  try { await businessStore.trackContact(business.id, 'directions') } catch {}
-                  window.open(`https://maps.google.com/maps?daddr=${encodeURIComponent(business.address)}`)
-                }}
-              >
-                <Navigation className="w-4 h-4 mr-2" />
-                Directions
+              <Button asChild>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(business.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={async () => { try { await businessStore.trackContact(business.id, 'directions') } catch {} }}
+                >
+                  <Navigation className="w-4 h-4 mr-2" />
+                  Directions
+                </a>
               </Button>
             </div>
           </div>
@@ -363,26 +364,25 @@ function BusinessDetailPageContent() {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button 
-                  className="w-full" 
-                  onClick={async () => {
-                    try { await businessStore.trackContact(business.id, 'phone') } catch {}
-                    window.open(`tel:${business.phone}`)
-                  }}
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  Call Now
+                <Button className="w-full" asChild>
+                  <a
+                    href={`tel:${business.phone}`}
+                    onClick={async () => { try { await businessStore.trackContact(business.id, 'phone') } catch {} }}
+                  >
+                    <Phone className="w-4 h-4 mr-2" />
+                    Call {business.phone}
+                  </a>
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={async () => {
-                    try { await businessStore.trackContact(business.id, 'directions') } catch {}
-                    window.open(`https://maps.google.com/maps?daddr=${encodeURIComponent(business.address)}`)
-                  }}
-                >
-                  <Navigation className="w-4 h-4 mr-2" />
-                  Get Directions
+                <Button variant="outline" className="w-full" asChild>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(business.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={async () => { try { await businessStore.trackContact(business.id, 'directions') } catch {} }}
+                  >
+                    <Navigation className="w-4 h-4 mr-2" />
+                    Get Directions
+                  </a>
                 </Button>
                 {business.website && (
                   <Button 

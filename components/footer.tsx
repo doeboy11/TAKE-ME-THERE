@@ -80,23 +80,23 @@ export function Footer() {
   }
 
   return (
-    <footer className="bg-gradient-to-b from-gray-50 to-gray-100 border-t border-gray-200 mt-16">
+    <footer className="bg-gradient-to-b from-gray-50 to-gray-100 border-t border-gray-200 mt-10 sm:mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Footer Content */}
-        <div className="py-12">
+        <div className="py-6 sm:py-12">
           {/* Top Section - Logo, Contact, and Social */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
             {/* Brand Section */}
             <div className="lg:col-span-1">
               <div className="mb-6">
                 <Logo size="lg" variant="default" />
-                <p className="text-sm text-gray-600 mt-3 leading-relaxed">
+                <p className="hidden sm:block text-sm text-gray-600 mt-3 leading-relaxed">
                   Ghana's Real Local Business Directory. Connecting communities with trusted local businesses across Ghana.
                 </p>
               </div>
               
               {/* Contact Information */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-blue-600" />
                   <span className="text-sm text-gray-700">+233 540 997 993</span>
@@ -105,7 +105,7 @@ export function Footer() {
                   <Mail className="h-4 w-4 text-blue-600" />
                   <span className="text-sm text-gray-700">info@takemetheregh.com</span>
                 </div>
-                <div className="flex items-start gap-3">
+                <div className="hidden sm:flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-blue-600 mt-0.5" />
                   <span className="text-sm text-gray-700 leading-relaxed">
                     Kumasi Digital Centre<br />
@@ -116,8 +116,8 @@ export function Footer() {
               </div>
             </div>
 
-            {/* Quick Links Section */}
-            <div className="lg:col-span-2">
+            {/* Quick Links Section - Desktop/Tablet */}
+            <div className="hidden md:block lg:col-span-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* For Businesses */}
                 <div>
@@ -241,9 +241,9 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Expandable Sections */}
-          <div className="border-t border-gray-200 pt-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Expandable Sections - Hidden on Mobile for brevity */}
+          <div className="hidden md:block border-t border-gray-200 pt-6 sm:pt-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {footerSections.map((section) => (
                 <div key={section.title} className="border border-gray-200 rounded-lg p-4">
                   <Button
@@ -278,12 +278,46 @@ export function Footer() {
               ))}
             </div>
           </div>
+
+          {/* Compact Quick Actions - Mobile only */}
+          <div className="md:hidden border-t border-gray-200 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="justify-center text-sm"
+                onClick={() => handleLinkClick('/business/register')}
+              >
+                List Business
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-center text-sm"
+                onClick={() => handleLinkClick('/help')}
+              >
+                Help Center
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-center text-sm"
+                onClick={() => handleLinkClick('/contact')}
+              >
+                Contact Us
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-center text-sm"
+                onClick={() => handleLinkClick('https://takemetheregh.com')}
+              >
+                Website
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Bottom Section */}
-        <div className="border-t border-gray-200 py-8">
-          {/* Legal Links */}
-          <div className="flex flex-wrap justify-center gap-6 mb-6">
+        <div className="border-t border-gray-200 py-5 sm:py-8">
+          {/* Legal Links - hidden on mobile for brevity */}
+          <div className="hidden sm:flex flex-wrap justify-center gap-6 mb-6">
             <Button 
               variant="link" 
               className="text-gray-600 hover:text-blue-600 p-0 text-sm transition-colors"
@@ -322,15 +356,15 @@ export function Footer() {
           </div>
 
           {/* Copyright */}
-          <div className="text-center space-y-3">
-            <p className="text-sm text-gray-500">
+          <div className="text-center space-y-2">
+            <p className="text-xs sm:text-sm text-gray-500">
               © 2025 Take Me There Ghana, Inc. All rights reserved.
             </p>
-            <p className="text-xs text-gray-400 leading-relaxed max-w-3xl mx-auto">
+            <p className="hidden sm:block text-xs text-gray-400 leading-relaxed max-w-3xl mx-auto">
               Take Me There, the Take Me There logo, Ghana's Real Local Business Directory, and all other Take Me There
               marks are registered trademarks of Take Me There Ghana, Inc. All other marks contained herein are the property of their respective owners.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center justify-center gap-2 text-[10px] sm:text-xs text-gray-400">
               <span>Made with ❤️ in Ghana</span>
               <span>•</span>
               <span>Empowering local businesses and communities</span>

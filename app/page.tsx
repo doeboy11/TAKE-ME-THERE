@@ -32,6 +32,7 @@ import { Slider } from "@/components/ui/slider"
 import { BusinessGallery } from "@/components/business-gallery"
 import { Footer } from "@/components/footer"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { businessStore, Business as StoreBusiness } from "@/lib/business-store"
@@ -69,13 +70,13 @@ function LocalBusinessSearchContent() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [compactHeader, setCompactHeader] = useState(false);
   const searchDebounceRef = useRef<number | undefined>(undefined);
   const searchSectionRef = useRef<HTMLDivElement>(null);
+  const [searchSheetOpen, setSearchSheetOpen] = useState(false);
 
   // Derived primitive values for stable effect dependencies
   const maxDistanceValue = (Array.isArray(maxDistance) && maxDistance.length > 0 ? maxDistance[0] : 5)
@@ -144,13 +145,6 @@ function LocalBusinessSearchContent() {
     "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=2400&h=1000&q=85"  // Clothing store (4K-ready)
   ]
 
-  // Rotate banner images
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % bannerImages.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [bannerImages.length]);
 
   const categories = [
     // Core
@@ -538,6 +532,16 @@ function LocalBusinessSearchContent() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Mobile Search Trigger - Always visible on mobile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Open search"
+                className="rounded-full sm:hidden"
+                onClick={() => setSearchSheetOpen(true)}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
               {/* Mobile Sidebar Toggle */}
               <Button
                 variant="outline"
@@ -587,9 +591,7 @@ function LocalBusinessSearchContent() {
                 size="icon"
                 aria-label="Open search"
                 className="rounded-full"
-                onClick={() => {
-                  searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
+                onClick={() => setSearchSheetOpen(true)}
               >
                 <Search className="h-5 w-5" />
               </Button>
@@ -654,47 +656,91 @@ function LocalBusinessSearchContent() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Hero with rotating small-business images */}
-        <div className="relative overflow-hidden rounded-3xl mb-8 shadow-2xl h-[220px] sm:h-[300px] lg:h-[380px]">
-          <div className="absolute inset-0">
-            {bannerImages.map((image, index) => (
-              <div
-                key={index}
-                className={`absolute inset-0 transition-opacity duration-1000 ${
-                  index === currentImageIndex ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-                <img
-                  src={image}
-                  alt={`Small business showcase ${index + 1}`}
-                  className="w-full h-full object-cover"
-                  loading={index === currentImageIndex ? 'eager' : 'lazy'}
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/20" />
-              </div>
-            ))}
-          </div>
-          <div className="relative z-10 h-full flex items-center p-6 sm:p-10">
+      {/* Mobile Search Sheet */}
+      <Sheet open={searchSheetOpen} onOpenChange={setSearchSheetOpen}>
+        <SheetContent side="bottom" className="sm:max-w-xl sm:mx-auto rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Search businesses</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white drop-shadow-md">
-                Discover great local businesses
-              </h1>
-              <p className="mt-2 text-white/90 max-w-2xl">
-                Restaurants, salons, repair shops, markets and more — all around you.
-              </p>
+              <SearchAutocomplete
+                businesses={allBusinesses as any}
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onBusinessSelect={handleBusinessSelect as any}
+                onCategorySelect={handleCategorySelect}
+                placeholder="Search businesses, services..."
+              />
+            </div>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="City or region"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="pl-9 h-11 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={getCurrentLocation}
+                disabled={gettingLocation}
+                variant="outline"
+                className="h-11 flex-1 border-gray-300 hover:bg-gray-50 text-gray-700"
+              >
+                {gettingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
+                <span className="ml-2">Near Me</span>
+              </Button>
+              <Button
+                onClick={() => { handleSearch(); setSearchSheetOpen(false); }}
+                className="h-11 flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
             </div>
           </div>
-          {/* Indicators */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex space-x-2">
-            {bannerImages.map((_, index) => (
-              <div
-                key={index}
-                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                  index === currentImageIndex ? 'bg-white scale-110 shadow' : 'bg-white/50'
-                }`}
-              />
-            ))}
+        </SheetContent>
+      </Sheet>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Unified Hero (single image with combined messaging) */}
+        <div className="relative overflow-hidden rounded-3xl mb-8 shadow-2xl h-[340px] sm:h-[420px] lg:h-[520px] pb-2">
+          <img
+            src={bannerImages[0]}
+            alt="Ghana local businesses"
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/30" />
+          <div className="relative z-10 h-full flex items-end p-4 sm:p-10">
+            <div className="max-w-3xl bg-black/60 sm:bg-black/35 backdrop-blur-md sm:backdrop-blur-sm rounded-2xl p-4 sm:p-7 border border-white/10 mb-2 w-full sm:w-auto">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white/90 text-xs tracking-wide mx-auto sm:mx-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                Trusted local directory
+              </div>
+              <h1 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white drop-shadow-md leading-tight text-center sm:text-left">
+                Discover great local businesses — and grow yours
+              </h1>
+              <p className="mt-2 text-white/90 text-sm sm:text-base max-w-2xl mx-auto sm:mx-0">
+                Find restaurants, salons, repair shops and more near you. List your business for free and reach more customers across Ghana.
+              </p>
+              <div className="mt-4 pt-4 border-t border-white/10 flex flex-col sm:flex-row sm:flex-nowrap gap-3 sm:items-center max-w-xl mx-auto sm:mx-0">
+                <Button
+                  onClick={() => setShowLogin(true)}
+                  className="bg-white/15 hover:bg-white/25 text-white border border-white/30 w-full sm:w-auto"
+                >
+                  List Your Business FREE
+                </Button>
+                <Button
+                  className="bg-white/15 hover:bg-white/25 text-white border border-white/30 w-full sm:w-auto"
+                  onClick={() => router.push('/how-it-works')}
+                >
+                  Learn More
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -747,10 +793,29 @@ function LocalBusinessSearchContent() {
             )}
 
             {/* Search Section */}
-            <div ref={searchSectionRef} className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/50 p-6 sm:p-8 mb-8 transition-all duration-300 ease-in-out ${compactHeader ? 'opacity-0 -translate-y-2 pointer-events-none hidden md:block' : 'opacity-100 translate-y-0'}`}>
+            <div
+              ref={searchSectionRef}
+              className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/50 p-6 sm:p-8 mb-8 transition-all duration-300 ease-in-out 
+                ${compactHeader
+                  ? 'md:opacity-0 md:-translate-y-2 md:pointer-events-none'
+                  : 'opacity-100 translate-y-0'
+                }
+              `}
+            >
               <div className="space-y-6">
-                {/* Main Search Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Mobile: Simple trigger to open bottom sheet */}
+                <div className="sm:hidden">
+                  <Button
+                    onClick={() => setSearchSheetOpen(true)}
+                    className="w-full h-12 justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold"
+                  >
+                    <Search className="h-5 w-5 mr-2" />
+                    Open Search
+                  </Button>
+                </div>
+
+                {/* Desktop/Tablet: Full Search Row */}
+                <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="sm:col-span-2 lg:col-span-1">
                     <SearchAutocomplete
                       businesses={allBusinesses as any}
@@ -869,96 +934,7 @@ function LocalBusinessSearchContent() {
               </div>
             </div>
 
-            {/* Business Owner CTA Banner */}
-            {!user && (
-              <div className="relative overflow-hidden rounded-2xl mb-8 shadow-2xl">
-                {/* Rotating Background Images */}
-                <div className="absolute inset-0">
-                  {bannerImages.map((image, index) => (
-                    <div
-                      key={index}
-                      className={`absolute inset-0 transition-opacity duration-1000 ${
-                        index === currentImageIndex ? 'opacity-100' : 'opacity-0'
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt={`Business showcase ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/20"></div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Image Indicator */}
-                <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex space-x-3">
-                  {bannerImages.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                        index === currentImageIndex 
-                          ? 'bg-white scale-125 shadow-lg' 
-                          : 'bg-white/50 scale-100'
-                      }`}
-                    />
-                  ))}
-                </div>
-                
-                {/* Content */}
-                <div className="relative z-10 p-8 sm:p-12">
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                          <Building2 className="w-5 h-5 text-white" />
-                        </div>
-                        <span className="text-white text-sm font-semibold bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                          FREE LISTING
-                        </span>
-                      </div>
-                      <h3 className="text-3xl sm:text-4xl font-bold text-white mb-4 drop-shadow-lg leading-tight">
-                        Get More Customers Today!
-                      </h3>
-                      <p className="text-white text-lg mb-6 opacity-95 drop-shadow-md font-medium leading-relaxed">
-                        Join thousands of Ghanaian businesses already reaching new customers on Take Me There. 
-                        <br className="hidden sm:block" />
-                        <span className="font-semibold">Free listing • No monthly fees • Start in 5 minutes</span>
-                      </p>
-                      <div className="flex flex-wrap gap-6 text-white text-sm opacity-95 font-medium">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                          Reach customers across Ghana
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                          Get customer reviews & ratings
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                          Manage your listing anytime
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
-                      <Button 
-                        onClick={() => setShowLogin(true)} 
-                        className="bg-white text-blue-600 hover:bg-gray-50 font-bold px-8 py-4 text-lg shadow-xl backdrop-blur-sm border-0"
-                      >
-                        List Your Business FREE
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="border-white text-white hover:bg-white hover:text-blue-600 font-bold px-8 py-4 text-lg backdrop-blur-sm"
-                        onClick={() => window.location.href = '/how-it-works'}
-                      >
-                        Learn More
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Business Owner CTA Banner - removed (merged into hero) */}
 
             {/* Results Header */}
             <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1118,6 +1094,8 @@ function LocalBusinessSearchContent() {
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredBusinesses.length}
                   />
                 )}
               </div>
@@ -1130,7 +1108,13 @@ function LocalBusinessSearchContent() {
             {/* Gallery Modal */}
             {galleryOpen && selectedBusiness && (
               <BusinessGallery
-                business={selectedBusiness}
+                images={
+                  selectedBusiness.images && selectedBusiness.images.length > 0
+                    ? selectedBusiness.images
+                    : (selectedBusiness.image ? [selectedBusiness.image] : [])
+                }
+                businessName={selectedBusiness.name}
+                isOpen={galleryOpen}
                 onClose={() => setGalleryOpen(false)}
               />
             )}

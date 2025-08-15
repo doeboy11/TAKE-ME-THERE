@@ -229,28 +229,25 @@ export default function BusinessMap({ businesses, onBusinessSelect, userLocation
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(`tel:${business.phone}`)
-                      }}
-                    >
-                      <Phone className="w-3 h-3 mr-1" />
-                      Call Now
+                    <Button size="sm" className="flex-1" asChild>
+                      <a
+                        href={`tel:${business.phone}`}
+                        onClick={(e) => { e.stopPropagation() }}
+                      >
+                        <Phone className="w-3 h-3 mr-1" />
+                        Call {business.phone}
+                      </a>
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(`https://maps.google.com/maps?daddr=${encodeURIComponent(business.address)}`, '_blank')
-                      }}
-                    >
-                      <MapPin className="w-3 h-3 mr-1" />
-                      Directions
+                    <Button size="sm" variant="outline" className="flex-1" asChild>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(business.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation() }}
+                      >
+                        <MapPin className="w-3 h-3 mr-1" />
+                        Directions
+                      </a>
                     </Button>
                   </div>
                 </CardContent>
@@ -308,22 +305,21 @@ export default function BusinessMap({ businesses, onBusinessSelect, userLocation
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() => window.open(`tel:${selectedBusiness.phone}`)}
-              >
-                <Phone className="w-3 h-3 mr-1" />
-                Call Now
+              <Button size="sm" className="flex-1" asChild>
+                <a href={`tel:${selectedBusiness.phone}`}>
+                  <Phone className="w-3 h-3 mr-1" />
+                  Call {selectedBusiness.phone}
+                </a>
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                onClick={() => window.open(`https://maps.google.com/maps?daddr=${encodeURIComponent(selectedBusiness.address)}`, '_blank')}
-              >
-                <MapPin className="w-3 h-3 mr-1" />
-                Directions
+              <Button size="sm" variant="outline" className="flex-1" asChild>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedBusiness.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MapPin className="w-3 h-3 mr-1" />
+                  Directions
+                </a>
               </Button>
             </div>
           </CardContent>

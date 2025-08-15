@@ -17,6 +17,13 @@ const nextConfig = {
     //   { protocol: 'https', hostname: 'zsypjqjmdkamowykryiy.supabase.co' },
     // ],
   },
+  webpack: (config, { dev }) => {
+    // Disable filesystem cache in dev to avoid Windows EPERM rename errors
+    if (dev) {
+      config.cache = false
+    }
+    return config
+  },
 }
 
 export default nextConfig
