@@ -19,21 +19,26 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleAdminLogin = async () => {
+    console.debug('[AdminLogin] Sign In clicked')
     setError("")
     setIsLoading(true)
     try {
+      console.debug('[AdminLogin] Attempting Supabase signInWithPassword for', email)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      console.debug('[AdminLogin] signIn result:', { user: data?.user?.id, error: error?.message })
       if (error) {
         setError(error.message)
         return
       }
       const role = (data.user?.app_metadata as any)?.role || (data.user?.user_metadata as any)?.role
+      console.debug('[AdminLogin] user role:', role)
       if (role !== 'admin') {
         setError('This account does not have admin access.')
         return
       }
       router.push('/admin')
     } catch (e: any) {
+      console.error('[AdminLogin] signIn exception:', e)
       setError(e?.message || 'Login failed')
     } finally {
       setIsLoading(false)

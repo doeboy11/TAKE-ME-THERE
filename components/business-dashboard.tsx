@@ -571,13 +571,14 @@ export function BusinessDashboard() {
         }
       }
 
-    await fetchBusinesses()
+      await fetchBusinesses()
     } catch (error) {
       console.error('Error in handleDelete:', error)
       setFormError('Failed to delete business. Please try again.')
     } finally {
-    setLoading(false)
+      setLoading(false)
     }
+  }
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -1656,6 +1657,7 @@ export function BusinessDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
     </div>
   )
 }
