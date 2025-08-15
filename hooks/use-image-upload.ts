@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 export interface UploadedImage {
   url: string
   fileName: string
+  path?: string
   file?: File
 }
 
@@ -49,8 +50,9 @@ export function useImageUpload(maxImages: number = 5): UseImageUploadReturn {
       }
 
       const newImage: UploadedImage = {
-        url: result.url,
-        fileName: result.fileName,
+        url: result.url as string,
+        fileName: result.fileName as string,
+        path: result.path as string | undefined,
         file,
       }
 
@@ -69,8 +71,12 @@ export function useImageUpload(maxImages: number = 5): UseImageUploadReturn {
     if (!imageToRemove) return
 
     try {
-      // Delete from server
-      const response = await fetch(`/api/upload?fileName=${imageToRemove.fileName}`, {
+      // Prefer deleting by storage object path (RLS-compliant)
+      const qs = imageToRemove.path
+        ? `path=${encodeURIComponent(imageToRemove.path)}`
+        : `fileName=${encodeURIComponent(imageToRemove.fileName)}` // fallback
+
+      const response = await fetch(`/api/upload?${qs}`, {
         method: 'DELETE',
       })
 
