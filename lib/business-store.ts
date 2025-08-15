@@ -169,10 +169,18 @@ class BusinessStore {
             image_url: url,
             is_primary: idx === 0,
           }))
-        try {
-          await supa.from('business_images').insert(imageRows)
-        } catch (imgErr) {
-          console.warn('create(): failed to insert business_images rows:', imgErr)
+        
+        console.log('🔍 Attempting to insert business_images:', { businessId, imageRows })
+        
+        const { data: imageData, error: imageError } = await supa
+          .from('business_images')
+          .insert(imageRows)
+          .select('*')
+        
+        if (imageError) {
+          console.error('❌ Failed to insert business_images:', imageError)
+        } else {
+          console.log('✅ Successfully inserted business_images:', imageData)
         }
       }
 
