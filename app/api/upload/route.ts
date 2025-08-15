@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabaseClient'
+import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 
 export async function POST(request: NextRequest) {
   try {
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser()
+    if (userErr) {
+      console.error('Auth getUser error:', userErr)
+    }
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     const formData = await request.formData()
     const file = formData.get('file') as File
     const businessId = formData.get('businessId') as string
@@ -34,10 +48,13 @@ export async function POST(request: NextRequest) {
     const fileExt = file.name.split('.').pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
+    // Enforce RLS by prefixing with the authenticated user's ID
+    const objectKey = `${user.id}/${fileName}`
+
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('business-images')
-      .upload(fileName, file, {
+      .upload(objectKey, file, {
         cacheControl: '3600',
         upsert: false,
         contentType: file.type,
@@ -54,7 +71,7 @@ export async function POST(request: NextRequest) {
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('business-images')
-      .getPublicUrl(fileName)
+      .getPublicUrl(objectKey)
 
     if (!urlData?.publicUrl) {
       return NextResponse.json(
@@ -82,6 +99,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       url: urlData.publicUrl,
+      path: objectKey,
       fileName: fileName,
     })
 
@@ -96,36 +114,63 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
+    const path = searchParams.get('path')
+    const url = searchParams.get('url')
     const fileName = searchParams.get('fileName')
 
-    if (!fileName) {
-      return NextResponse.json(
-        { error: 'No fileName provided' },
-        { status: 400 }
-      )
+    // Derive objectKey
+    let objectKey: string | null = null
+    if (path) {
+      objectKey = path
+    } else if (url) {
+      // Convert public URL to storage path
+      const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/business-images/`
+      if (url.startsWith(prefix)) {
+        objectKey = url.substring(prefix.length)
+      }
+    } else if (fileName) {
+      // Backwards compatibility: assume user's own file
+      objectKey = `${user.id}/${fileName}`
+    }
+
+    if (!objectKey) {
+      return NextResponse.json({ error: 'No valid path/url/fileName provided' }, { status: 400 })
+    }
+
+    // Ensure the object belongs to the requesting user (RLS safety)
+    if (!objectKey.startsWith(`${user.id}/`)) {
+      return NextResponse.json({ error: 'Forbidden: cannot delete other users\' files' }, { status: 403 })
     }
 
     // Delete from Supabase Storage
     const { error: deleteError } = await supabase.storage
       .from('business-images')
-      .remove([fileName])
+      .remove([objectKey])
 
     if (deleteError) {
       console.error('Delete error:', deleteError)
       return NextResponse.json(
-        { error: 'Failed to delete image' },
+        { error: 'Failed to delete image', details: deleteError.message },
         { status: 500 }
       )
     }
 
-    // Also remove from business_images table
+    // Also remove from business_images table (best-effort)
+    const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/business-images/${objectKey}`
     await supabase
       .from('business_images')
       .delete()
-      .eq('image_url', `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/business-images/${fileName}`)
+      .eq('image_url', publicUrl)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, path: objectKey })
 
   } catch (error) {
     console.error('Delete API error:', error)
