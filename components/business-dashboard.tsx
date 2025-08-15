@@ -167,6 +167,22 @@ export function BusinessDashboard() {
 
   const [uploadingImages, setUploadingImages] = useState(false)
 
+  // Helper: extract storage path (uid/filename.ext) from Supabase public URL
+  const extractStoragePath = (publicUrl: string): string => {
+    try {
+      const u = new URL(publicUrl)
+      const marker = '/object/public/'
+      const idx = u.pathname.indexOf(marker)
+      if (idx === -1) return ''
+      // Remaining includes bucket + path
+      const remainder = u.pathname.substring(idx + marker.length)
+      // Strip leading bucket name
+      return remainder.replace(/^business-images\//, '')
+    } catch {
+      return ''
+    }
+  }
+
   const categories = [
     "Restaurant",
     "Fast Food",
@@ -557,7 +573,6 @@ export function BusinessDashboard() {
 
       // Delete the business
       const { error: deleteError } = await businessStore.delete(businessId);
-
       if (deleteError) {
         console.error('Error deleting business:', deleteError)
         const msg = (deleteError as any)?.message || (deleteError as any)?.hint || (deleteError as any)?.details || JSON.stringify(deleteError)
@@ -565,21 +580,17 @@ export function BusinessDashboard() {
         return
       }
 
-      // Clean up images from storage if they exist
+      // After successful delete, attempt to clean up images in storage (best-effort)
       if (businessData?.images && businessData.images.length > 0) {
         const imageFiles = businessData.images
           .filter((url: string) => url.includes('supabase.co'))
-          .map((url: string) => {
-            const urlParts = url.split('/')
-            return urlParts[urlParts.length - 1]
-          })
-
+          .map((url: string) => extractStoragePath(url))
+          .filter(Boolean) as string[]
         if (imageFiles.length > 0) {
-          const { error: storageError } = await businessStore.deleteImages(imageFiles);
-
+          const { error: storageError } = await businessStore.deleteImages(imageFiles)
           if (storageError) {
             console.error('Error deleting images from storage:', storageError)
-            // Don't fail the business deletion if image cleanup fails
+            // do not block UI
           }
         }
       }
@@ -628,8 +639,9 @@ export function BusinessDashboard() {
 
         const { data, error } = await businessStore.uploadImage(fileName, file)
         if (error) {
+          const errMsg = (error as any)?.message || (typeof error === 'string' ? error : JSON.stringify(error))
           console.error('Error uploading image:', error)
-          setFormError(`Failed to upload image: ${error.message || 'Unknown error'}`)
+          setFormError(`Failed to upload image: ${errMsg}`)
           // Keep temp preview visible; move to next
           continue
         }
@@ -647,8 +659,9 @@ export function BusinessDashboard() {
         }
       }
     } catch (error) {
+      const errMsg = (error as any)?.message || (typeof error === 'string' ? error : JSON.stringify(error))
       console.error('Error uploading images:', error)
-      setFormError('Failed to upload images. Please try again.')
+      setFormError(`Failed to upload images. ${errMsg}`)
     } finally {
       // Revoke object URLs to avoid memory leaks
       setTimeout(() => {
@@ -698,9 +711,8 @@ export function BusinessDashboard() {
     } else if (imageToRemove && imageToRemove.includes('supabase.co')) {
       // If it's a Supabase Storage URL, delete the file
       try {
-        const urlParts = imageToRemove.split('/')
-        const fileName = urlParts[urlParts.length - 1]
-        const { error } = await businessStore.deleteImage(fileName)
+        const path = extractStoragePath(imageToRemove)
+        const { error } = await businessStore.deleteImage(path || '')
         if (error) {
           console.error('Error deleting image from storage:', error)
         }

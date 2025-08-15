@@ -834,31 +834,31 @@ class BusinessStore {
   async uploadImage(fileName: string, file: File): Promise<{ data: { url: string; path: string } | null, error: any }> {
     try {
       const supa = supabase
-      const bucketCandidates = ['business-images', 'public', 'images']
-      let uploadedPath: string | null = null
-      const errors: Array<{ bucket: string; message: string }> = []
+      // Require auth and prefix object path with the user's UID to satisfy RLS
+      const { data: userData, error: userErr } = await supa.auth.getUser()
+      if (userErr || !userData?.user?.id) {
+        return { data: null, error: { message: 'Not authenticated' } }
+      }
+      const userId = userData.user.id
+      const bucket = 'business-images'
+      const objectPath = `${userId}/${fileName}`
 
-      for (const bucket of bucketCandidates) {
-        const { data, error } = await supa.storage.from(bucket).upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: (file as any)?.type || 'application/octet-stream',
-        })
-        if (!error && data?.path) {
-          uploadedPath = data.path
-          const { data: pub } = supa.storage.from(bucket).getPublicUrl(uploadedPath)
-          if (pub?.publicUrl) {
-            return { data: { url: pub.publicUrl, path: uploadedPath }, error: null }
-          }
-          // If no public URL, continue trying next bucket but record info
-          errors.push({ bucket, message: 'Public URL generation failed' })
-          continue
-        }
-        errors.push({ bucket, message: (error as any)?.message || 'Unknown storage error' })
+      const { data, error } = await supa.storage.from(bucket).upload(objectPath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: (file as any)?.type || 'application/octet-stream',
+      })
+
+      if (error) {
+        return { data: null, error: { message: (error as any)?.message || 'Upload failed' } }
       }
 
-      const combined = errors.map(e => `${e.bucket}: ${e.message}`).join('; ')
-      return { data: null, error: { message: combined || 'Upload failed' } }
+      const path = data?.path || objectPath
+      const { data: pub } = supa.storage.from(bucket).getPublicUrl(path)
+      if (!pub?.publicUrl) {
+        return { data: null, error: { message: 'Public URL generation failed' } }
+      }
+      return { data: { url: pub.publicUrl, path }, error: null }
     } catch (error) {
       const message = (error as any)?.message || 'Upload failed'
       return { data: null, error: { message } }
@@ -876,29 +876,26 @@ class BusinessStore {
     return { data: null }
   }
 
-  async deleteImage(fileName: string): Promise<{ error: any }> {
+  async deleteImage(fileNameOrPath: string): Promise<{ error: any }> {
     try {
       const supa = supabase
-      const bucketCandidates = ['business-images', 'public', 'images']
-      for (const bucket of bucketCandidates) {
-        const { error } = await supa.storage.from(bucket).remove([fileName])
-        if (!error) return { error: null }
-      }
-      return { error: { message: 'Failed to delete image from all buckets' } }
+      const bucket = 'business-images'
+      const path = fileNameOrPath
+      const { error } = await supa.storage.from(bucket).remove([path])
+      if (!error) return { error: null }
+      return { error }
     } catch (error) {
       return { error }
     }
   }
 
-  async deleteImages(fileNames: string[]): Promise<{ error: any }> {
+  async deleteImages(fileNamesOrPaths: string[]): Promise<{ error: any }> {
     try {
       const supa = supabase
-      const bucketCandidates = ['business-images', 'public', 'images']
-      for (const bucket of bucketCandidates) {
-        const { error } = await supa.storage.from(bucket).remove(fileNames)
-        if (!error) return { error: null }
-      }
-      return { error: { message: 'Failed to delete images from all buckets' } }
+      const bucket = 'business-images'
+      const { error } = await supa.storage.from(bucket).remove(fileNamesOrPaths)
+      if (!error) return { error: null }
+      return { error }
     } catch (error) {
       return { error }
     }

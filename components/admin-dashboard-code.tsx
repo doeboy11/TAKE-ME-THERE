@@ -113,11 +113,7 @@ export function AdminDashboardCode() {
     try {
       console.log('Attempting to approve business via Supabase UPDATE:', businessId)
       const payload: any = {
-        // cover both possible schemas
         approval_status: 'approved',
-        approvalStatus: 'approved',
-        status: 'Approved',
-        approved_at: new Date().toISOString(),
         admin_notes: adminNotes || null,
       }
       const { data, error } = await supabase
@@ -127,7 +123,7 @@ export function AdminDashboardCode() {
         .select('*')
 
       if (error) {
-        console.error('Supabase approve UPDATE error:', error)
+        console.error('Supabase approve UPDATE error:', error, 'details:', (error as any)?.message || JSON.stringify(error))
         return
       }
 
@@ -158,9 +154,6 @@ export function AdminDashboardCode() {
       console.log('Attempting to reject business via Supabase UPDATE:', businessId)
       const payload: any = {
         approval_status: 'rejected',
-        approvalStatus: 'rejected',
-        status: 'Rejected',
-        rejected_at: new Date().toISOString(),
         admin_notes: adminNotes || null,
       }
       const { data, error } = await supabase
@@ -170,7 +163,7 @@ export function AdminDashboardCode() {
         .select('*')
 
       if (error) {
-        console.error('Supabase reject UPDATE error:', error)
+        console.error('Supabase reject UPDATE error:', error, 'details:', (error as any)?.message || JSON.stringify(error))
         return
       }
 

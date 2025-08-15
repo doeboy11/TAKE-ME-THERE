@@ -28,12 +28,20 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     setError("")
+    // Clear any existing session to avoid cross-account mixing
+    try { await supabase.auth.signOut() } catch {}
     const success = await login(email, password)
     if (success) {
+      // Ensure session is written
+      await supabase.auth.getSession()
       // Fetch the authenticated user and check role from metadata using shared client
       const { data } = await supabase.auth.getUser()
       const role = (data.user?.app_metadata as any)?.role || (data.user?.user_metadata as any)?.role
-      router.push(role === 'admin' ? "/admin" : "/dashboard")
+      const target = role === 'admin' ? "/admin" : "/dashboard"
+      router.replace(target)
+      setTimeout(() => router.refresh(), 0)
+      // Hard navigation fallback to guarantee redirect
+      setTimeout(() => { try { window.location.assign(target) } catch {} }, 50)
     } else {
       setError("Invalid credentials. Please try again.")
     }

@@ -23,6 +23,8 @@ export default function AdminLogin() {
     setError("")
     setIsLoading(true)
     try {
+      // Clear any existing session to avoid cross-account mixing
+      try { await supabase.auth.signOut() } catch {}
       console.debug('[AdminLogin] Attempting Supabase signInWithPassword for', email)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       console.debug('[AdminLogin] signIn result:', { user: data?.user?.id, error: error?.message })
@@ -30,13 +32,19 @@ export default function AdminLogin() {
         setError(error.message)
         return
       }
+      // Ensure we have a fresh session
+      await supabase.auth.getSession()
       const role = (data.user?.app_metadata as any)?.role || (data.user?.user_metadata as any)?.role
       console.debug('[AdminLogin] user role:', role)
       if (role !== 'admin') {
         setError('This account does not have admin access.')
         return
       }
-      router.push('/admin')
+      // Replace to avoid back nav to login; refresh to ensure middleware/client see session
+      router.replace('/admin')
+      setTimeout(() => router.refresh(), 0)
+      // Hard navigation fallback to guarantee redirect
+      setTimeout(() => { try { window.location.assign('/admin') } catch {} }, 50)
     } catch (e: any) {
       console.error('[AdminLogin] signIn exception:', e)
       setError(e?.message || 'Login failed')
