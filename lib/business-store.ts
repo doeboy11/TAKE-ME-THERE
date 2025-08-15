@@ -100,8 +100,8 @@ function getBusinessImageUrl(imageUrl: string): string {
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     return imageUrl;
   }
-  // Try both possible bucket names for robustness
-  const bucketNames = ['business-images', 'public', 'images'];
+  // Only use the known bucket to avoid noisy 'Bucket not found' errors
+  const bucketNames = ['business-images'];
   for (const bucket of bucketNames) {
     const { data } = supabase.storage.from(bucket).getPublicUrl(imageUrl);
     if (data?.publicUrl && data.publicUrl.includes(imageUrl)) {
@@ -868,11 +868,9 @@ class BusinessStore {
   getPublicUrl(fileName: string): { data: { publicUrl: string } | null } {
     if (!fileName) return { data: null }
     const supa = supabase
-    const bucketCandidates = ['business-images', 'public', 'images']
-    for (const bucket of bucketCandidates) {
-      const { data } = supa.storage.from(bucket).getPublicUrl(fileName)
-      if (data?.publicUrl) return { data: { publicUrl: data.publicUrl } }
-    }
+    const bucket = 'business-images'
+    const { data } = supa.storage.from(bucket).getPublicUrl(fileName)
+    if (data?.publicUrl) return { data: { publicUrl: data.publicUrl } }
     return { data: null }
   }
 

@@ -628,31 +628,31 @@ export function BusinessDashboard() {
     const baseIndex = formData.images.length
     setFormData((prev) => ({ ...prev, images: [...prev.images, ...tempUrls].slice(0, 5) }))
 
-    // 2) Upload and replace temp URLs with final public URLs
+    // 2) Upload via server API and replace temp URLs with final public URLs
     try {
       for (let i = 0; i < toProcess; i++) {
         const file = files[i]
         if (!file || !file.type.startsWith("image/")) continue
 
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+        const form = new FormData()
+        form.append('file', file)
 
-        const { data, error } = await businessStore.uploadImage(fileName, file)
-        if (error) {
-          const errMsg = (error as any)?.message || (typeof error === 'string' ? error : JSON.stringify(error))
-          console.error('Error uploading image:', error)
+        const res = await fetch('/api/upload', { method: 'POST', body: form })
+        let result: any = null
+        try { result = await res.json() } catch {}
+        if (!res.ok) {
+          const errMsg = result?.error || `Upload failed with status ${res.status}`
+          console.error('Error uploading image via /api/upload:', errMsg)
           setFormError(`Failed to upload image: ${errMsg}`)
-          // Keep temp preview visible; move to next
           continue
         }
 
-        if (data?.url) {
+        if (result?.url) {
           const targetIndex = baseIndex + i
-          console.log(`🔍 Replacing temp URL at index ${targetIndex} with: ${data.url}`)
+          console.log(`🔍 Replacing temp URL at index ${targetIndex} with: ${result.url}`)
           setFormData((prev) => {
             const next = [...prev.images]
-            // Replace the temp blob URL at the corresponding index
-            next[targetIndex] = data.url
+            next[targetIndex] = result.url as string
             console.log('🔍 Updated images array:', next)
             return { ...prev, images: next }
           })
@@ -709,17 +709,21 @@ export function BusinessDashboard() {
     if (imageToRemove?.startsWith('blob:')) {
       try { URL.revokeObjectURL(imageToRemove) } catch {}
     } else if (imageToRemove && imageToRemove.includes('supabase.co')) {
-      // If it's a Supabase Storage URL, delete the file
-      try {
-        const path = extractStoragePath(imageToRemove)
-        const { error } = await businessStore.deleteImage(path || '')
-        if (error) {
-          console.error('Error deleting image from storage:', error)
+    // If it's a Supabase Storage URL, delete via server API for RLS compliance
+    try {
+      const path = extractStoragePath(imageToRemove)
+      if (path) {
+        const res = await fetch(`/api/upload?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+        if (!res.ok) {
+          let msg = ''
+          try { const j = await res.json(); msg = j?.error || '' } catch {}
+          console.error('Error deleting image via /api/upload:', msg || res.statusText)
         }
-      } catch (error) {
-        console.error('Error deleting image:', error)
       }
+    } catch (error) {
+      console.error('Error deleting image:', error)
     }
+  }
 
     setFormData((prev) => ({
       ...prev,
