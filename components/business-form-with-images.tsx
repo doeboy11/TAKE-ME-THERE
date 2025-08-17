@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,22 +10,40 @@ import { ImageUploadForm } from './image-upload-form'
 import { ImageGallery } from './image-gallery'
 import { UploadedImage } from '@/hooks/use-image-upload'
 import { supabase } from '@/lib/supabaseClient'
+import TagInput from '@/components/ui/tag-input'
+import { TimeScrollInput } from '@/components/ui/time-scroll-input'
 
 interface BusinessFormData {
   name: string
+  category: string
   description: string
   address: string
   phone: string
   images: string[]
+  // Specialties tags (accept any text; spaces allowed)
+  specialties: string[]
+  // Weekly hours
+  hours: Record<string, { open: string; close: string; closed: boolean }>
 }
 
 export function BusinessFormWithImages() {
   const [formData, setFormData] = useState<BusinessFormData>({
     name: '',
+    category: '',
     description: '',
     address: '',
     phone: '',
-    images: []
+    images: [],
+    specialties: [],
+    hours: {
+      Monday: { open: '09:00', close: '17:00', closed: false },
+      Tuesday: { open: '09:00', close: '17:00', closed: false },
+      Wednesday: { open: '09:00', close: '17:00', closed: false },
+      Thursday: { open: '09:00', close: '17:00', closed: false },
+      Friday: { open: '09:00', close: '17:00', closed: false },
+      Saturday: { open: '10:00', close: '16:00', closed: false },
+      Sunday: { open: '10:00', close: '16:00', closed: true },
+    }
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -53,14 +71,20 @@ export function BusinessFormWithImages() {
         throw new Error('You must be logged in to create a business')
       }
 
+      // Serialize weekly hours as JSON string (stored in TEXT column `hours`)
+      const hoursJson = JSON.stringify(formData.hours)
+
       // Insert business into database
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert({
           name: formData.name,
+          category: formData.category,
           description: formData.description,
           address: formData.address,
           phone: formData.phone,
+          hours: hoursJson,
+          specialties: formData.specialties,
           owner_id: userData.user.id,
           approval_status: 'pending'
         })
@@ -94,10 +118,21 @@ export function BusinessFormWithImages() {
       // Reset form
       setFormData({
         name: '',
+        category: '',
         description: '',
         address: '',
         phone: '',
-        images: []
+        images: [],
+        specialties: [],
+        hours: {
+          Monday: { open: '09:00', close: '17:00', closed: false },
+          Tuesday: { open: '09:00', close: '17:00', closed: false },
+          Wednesday: { open: '09:00', close: '17:00', closed: false },
+          Thursday: { open: '09:00', close: '17:00', closed: false },
+          Friday: { open: '09:00', close: '17:00', closed: false },
+          Saturday: { open: '10:00', close: '16:00', closed: false },
+          Sunday: { open: '10:00', close: '16:00', closed: true },
+        }
       })
 
     } catch (error) {
@@ -133,11 +168,22 @@ export function BusinessFormWithImages() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Input
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  required
+                  placeholder="e.g. Salon, Restaurant, Boutique"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
+                  required
                   placeholder="Enter phone number"
                 />
               </div>
@@ -149,6 +195,7 @@ export function BusinessFormWithImages() {
                 id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange('address', e.target.value)}
+                required
                 placeholder="Enter business address"
               />
             </div>
@@ -159,6 +206,7 @@ export function BusinessFormWithImages() {
                 id="description"
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
+                required
                 placeholder="Describe your business"
                 rows={4}
               />
@@ -171,6 +219,26 @@ export function BusinessFormWithImages() {
                 onImagesChange={handleImagesChange}
                 maxImages={5}
                 className="border rounded-lg p-4"
+              />
+            </div>
+
+            {/* Specialties (tag input; accepts any text incl. spaces) */}
+            <div className="space-y-2">
+              <Label htmlFor="specialties">Specialties</Label>
+              <TagInput
+                value={formData.specialties}
+                onChange={(next) => setFormData(prev => ({ ...prev, specialties: next }))}
+                placeholder="Type a specialty and press Enter (spaces allowed)"
+              />
+              <p className="text-xs text-muted-foreground">Add as many as you like. No special separators required.</p>
+            </div>
+
+            {/* Weekly Hours */}
+            <div className="space-y-3">
+              <Label>Operating Hours (per day)</Label>
+              <HoursEditor 
+                value={formData.hours}
+                onChange={(next) => setFormData(prev => ({ ...prev, hours: next }))}
               />
             </div>
 
@@ -205,7 +273,7 @@ export function BusinessFormWithImages() {
             {/* Submit Button */}
             <Button 
               type="submit" 
-              disabled={isSubmitting || !formData.name}
+              disabled={isSubmitting || !formData.name || !formData.category}
               className="w-full"
             >
               {isSubmitting ? 'Creating Business...' : 'Create Business'}
@@ -213,6 +281,81 @@ export function BusinessFormWithImages() {
           </form>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// Helper: hours editor with scrollable time selects
+function HoursEditor({
+  value,
+  onChange,
+}: {
+  value: Record<string, { open: string; close: string; closed: boolean }>
+  onChange: (v: Record<string, { open: string; close: string; closed: boolean }>) => void
+}) {
+  const days = useMemo(
+    () => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+    []
+  )
+
+  const timeOptions = useMemo(() => {
+    const opts: string[] = []
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const hh = h.toString().padStart(2, '0')
+        const mm = m.toString().padStart(2, '0')
+        opts.push(`${hh}:${mm}`)
+      }
+    }
+    return opts
+  }, [])
+
+  const updateDay = (day: string, patch: Partial<{ open: string; close: string; closed: boolean }>) => {
+    const next = { ...value, [day]: { ...value[day], ...patch } }
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-3">
+      {days.map((day) => {
+        const row = value[day]
+        return (
+          <div key={day} className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">
+            <div className="col-span-1 font-medium">{day}</div>
+            <div className="col-span-2 flex items-center gap-2">
+              <label className="text-sm">Open</label>
+              <div className="w-full">
+                <TimeScrollInput
+                  ariaLabel={`${day} open time`}
+                  value={row.open}
+                  onChange={(val) => updateDay(day, { open: val })}
+                  className={row.closed ? 'opacity-50 pointer-events-none' : ''}
+                />
+              </div>
+            </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <label className="text-sm">Close</label>
+              <div className="w-full">
+                <TimeScrollInput
+                  ariaLabel={`${day} close time`}
+                  value={row.close}
+                  onChange={(val) => updateDay(day, { close: val })}
+                  className={row.closed ? 'opacity-50 pointer-events-none' : ''}
+                />
+              </div>
+            </div>
+            <div className="sm:col-span-5 flex items-center gap-2">
+              <input
+                id={`${day}-closed`}
+                type="checkbox"
+                checked={row.closed}
+                onChange={(e) => updateDay(day, { closed: e.target.checked })}
+              />
+              <Label htmlFor={`${day}-closed`} className="text-sm">Closed</Label>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

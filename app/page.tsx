@@ -12,7 +12,9 @@
  */
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
+import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { useAuth, AuthProvider } from "@/lib/auth"
 import { BusinessLogin } from "@/components/business-login"
 import { BusinessDashboard } from "@/components/business-dashboard"
@@ -21,7 +23,9 @@ import { NavigationArrows } from "@/components/navigation-arrows"
 import { BusinessPagination } from "@/components/business-pagination"
 import { BusinessSidebar } from "@/components/business-sidebar"
 import { LogIn, User, MapPin, Star, Phone, Clock, Filter, Navigation, Loader2, List, Menu, X, Search, Building2 } from 'lucide-react'
-import BusinessMap from '@/components/business-map'
+// Dynamically import heavy components to reduce initial JS
+const BusinessMap = dynamic(() => import('@/components/business-map'), { ssr: false, loading: () => null })
+const BusinessGallery = dynamic(() => import('@/components/business-gallery').then(m => m.BusinessGallery), { ssr: false, loading: () => null })
 import Logo from '@/components/logo'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -29,10 +33,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { BusinessGallery } from "@/components/business-gallery"
 import { Footer } from "@/components/footer"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { businessStore, Business as StoreBusiness } from "@/lib/business-store"
@@ -54,9 +56,12 @@ function LocalBusinessSearchContent() {
   const { user } = useAuth();
   const router = useRouter();
   const [allBusinesses, setAllBusinesses] = useState<UiBusiness[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("all");
   const [maxDistance, setMaxDistance] = useState([5]);
@@ -76,7 +81,114 @@ function LocalBusinessSearchContent() {
   const [compactHeader, setCompactHeader] = useState(false);
   const searchDebounceRef = useRef<number | undefined>(undefined);
   const searchSectionRef = useRef<HTMLDivElement>(null);
-  const [searchSheetOpen, setSearchSheetOpen] = useState(false);
+  const scrollToSearch = () => {
+    try {
+      searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch {}
+  }
+
+  // Incremental loading to avoid large initial payloads
+  const handleLoadMore = async () => {
+    try {
+      setLoadingMore(true)
+      const nextPage = pageIndex + 1
+      const next = await businessStore.getApprovedBusinessesPage(nextPage, 30)
+      const normalized: UiBusiness[] = (next || []).map((b) => ({
+        ...b,
+        priceRange: (b as any).priceRange ?? (b as any).price_range ?? "₵",
+        image: (b as any).image || "/placeholder.svg",
+        images: (b as any).images || [],
+        rating: (b as any).rating ?? 0,
+        reviewCount: (b as any).reviewCount ?? 0,
+        distance: (b as any).distance ?? 0,
+      }))
+      if (normalized.length > 0) {
+        const appended = [...allBusinesses, ...normalized]
+        setAllBusinesses(appended)
+        setFilteredBusinesses(appended)
+        setPageIndex(nextPage)
+      }
+    } catch (e) {
+      console.error('Error loading more businesses:', e)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+  // Mobile search overlay (non-modal, fixed top)
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const scrollCloseStateRef = useRef<{ touchStartY: number }>({ touchStartY: 0 })
+  const closeOverlayOnSearch = false
+
+  // Load recent searches
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('recent_searches')
+      if (raw) setRecentSearches(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  // Debounce search query for lightweight suggestions
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(searchQuery), 200)
+    return () => clearTimeout(handle)
+  }, [searchQuery])
+
+  const addRecentSearch = (q: string) => {
+    const v = q.trim()
+    if (!v) return
+    setRecentSearches((prev) => {
+      const next = [v, ...prev.filter((x) => x.toLowerCase() !== v.toLowerCase())].slice(0, 8)
+      try { localStorage.setItem('recent_searches', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (searchOverlayOpen) {
+      // Focus input shortly after opening
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50)
+      // Close overlay when user scrolls beyond a small threshold
+      const onWheel = (e: WheelEvent) => {
+        if (Math.abs(e.deltaY) > 24) setSearchOverlayOpen(false)
+      }
+      const onTouchStart = (e: TouchEvent) => {
+        if (e.touches && e.touches.length > 0) {
+          scrollCloseStateRef.current.touchStartY = e.touches[0].clientY
+        }
+      }
+      const onTouchMove = (e: TouchEvent) => {
+        if (e.touches && e.touches.length > 0) {
+          const dy = Math.abs(e.touches[0].clientY - scrollCloseStateRef.current.touchStartY)
+          if (dy > 24) setSearchOverlayOpen(false)
+        }
+      }
+      window.addEventListener('wheel', onWheel, { passive: true })
+      window.addEventListener('touchstart', onTouchStart, { passive: true })
+      window.addEventListener('touchmove', onTouchMove, { passive: true })
+      return () => {
+        clearTimeout(t)
+        window.removeEventListener('wheel', onWheel as any)
+        window.removeEventListener('touchstart', onTouchStart as any)
+        window.removeEventListener('touchmove', onTouchMove as any)
+      }
+    }
+  }, [searchOverlayOpen])
+
+  // Lightweight live suggestions for overlay (client side)
+  const liveSuggestions = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase()
+    if (!q) return [] as UiBusiness[]
+    return allBusinesses
+      .filter(b =>
+        b.name.toLowerCase().includes(q) ||
+        b.category.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.address.toLowerCase().includes(q)
+      )
+      .slice(0, 8)
+  }, [debouncedQuery, allBusinesses])
 
   // Derived primitive values for stable effect dependencies
   const maxDistanceValue = (Array.isArray(maxDistance) && maxDistance.length > 0 ? maxDistance[0] : 5)
@@ -88,7 +200,7 @@ function LocalBusinessSearchContent() {
       setIsLoading(true);
       try {
         // Only fetch businesses with approval_status === 'approved'
-        const approved = await businessStore.getApprovedBusinesses();
+        const approved = await businessStore.getApprovedBusinessesPage(0, 30);
         const normalized: UiBusiness[] = (approved || []).map((b) => ({
           ...b,
           priceRange: (b as any).priceRange ?? b.price_range ?? "₵",
@@ -100,9 +212,17 @@ function LocalBusinessSearchContent() {
         }))
         setAllBusinesses(normalized);
         setFilteredBusinesses(normalized); // show businesses on initial load
+        setPageIndex(1);
+        if (!normalized || normalized.length === 0) {
+          setError("No approved businesses found yet. Try adjusting filters or check back later.")
+        } else {
+          setError(null)
+        }
       } catch (error) {
+        console.error('Error loading approved businesses:', error)
         setAllBusinesses([]);
         setFilteredBusinesses([]);
+        setError("Error fetching approved businesses. Please check your connection and try again.")
       }
       setIsLoading(false);
     }
@@ -388,10 +508,17 @@ function LocalBusinessSearchContent() {
         try {
           // Reverse geocoding to get location name
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+            `/api/reverse-geocode?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&zoom=10`,
+            { cache: 'no-store' }
           )
+          if (!response.ok) {
+            throw new Error(`Reverse geocode failed: ${response.status}`)
+          }
           const data = await response.json()
-          const locationName = data.display_name.split(',')[0] // Get city name
+          const locationName =
+            (data?.address?.city || data?.address?.town || data?.address?.village || data?.address?.state) ??
+            (typeof data?.display_name === 'string' ? data.display_name.split(',')[0] : undefined) ??
+            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
           setLocation(locationName)
         } catch (error) {
           console.error('Error getting location name:', error)
@@ -416,18 +543,54 @@ function LocalBusinessSearchContent() {
   const handleSearch = () => {
     let results = allBusinesses
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      results = results.filter(business =>
-        business.name.toLowerCase().includes(query) ||
-        business.category.toLowerCase().includes(query) ||
-        business.description.toLowerCase().includes(query) ||
-        business.address.toLowerCase().includes(query)
-      )
+    // --- Natural-language relevance scoring ---
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      const tokens = q.split(/[^a-z0-9+]+/i).filter(Boolean)
+
+      const scoreFor = (b: UiBusiness) => {
+        // Combine searchable text fields
+        const fields: string[] = [
+          b.name,
+          b.category,
+          b.description,
+          b.address,
+          // Optional arrays from store: services, specialties, amenities
+          ...(Array.isArray((b as any).services) ? (b as any).services : []),
+          ...(Array.isArray((b as any).specialties) ? (b as any).specialties : []),
+          ...(Array.isArray((b as any).amenities) ? (b as any).amenities : []),
+        ].filter(Boolean).map((s) => String(s).toLowerCase())
+
+        const fullText = fields.join(' \n ')
+        let score = 0
+        // Exact phrase boost
+        if (fullText.includes(q)) score += 5
+        // Token matches with field-based weights
+        for (const t of tokens) {
+          if (!t) continue
+          // Name/category strong weight
+          if (b.name.toLowerCase().includes(t)) score += 3
+          if (b.category.toLowerCase().includes(t)) score += 2
+          // Description/address medium
+          if (b.description.toLowerCase().includes(t)) score += 2
+          if (b.address.toLowerCase().includes(t)) score += 1
+          // Services/specialties/amenities light
+          if (((b as any).services || []).join(' ').toLowerCase().includes(t)) score += 2
+          if (((b as any).specialties || []).join(' ').toLowerCase().includes(t)) score += 2
+          if (((b as any).amenities || []).join(' ').toLowerCase().includes(t)) score += 1
+        }
+        return score
+      }
+
+      // Keep only relevant and sort by score desc
+      results = results
+        .map((b) => ({ b, s: scoreFor(b) }))
+        .filter((x) => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .map((x) => x.b)
     }
 
-    // Filter by location
+    // Filter by location text if provided
     if (location.trim()) {
       const locationQuery = location.toLowerCase()
       results = results.filter(business =>
@@ -435,26 +598,38 @@ function LocalBusinessSearchContent() {
       )
     }
 
-    // Filter by category
+    // Filter by selected category
     if (category !== 'all') {
       results = results.filter(business => business.category === category)
     }
 
-    // Filter by distance if user location is available
+    // Distance filtering and sort by proximity when user location is known
     if (userLocation) {
       results = results.map(business => ({
         ...business,
         distance: business.lat && business.lng
           ? calculateDistance(userLocation.lat, userLocation.lng, business.lat, business.lng)
           : 0
-      })).filter(business => business.distance <= maxDistance[0])
-        .sort((a, b) => a.distance - b.distance)
+      }))
+      .filter(business => business.distance <= maxDistance[0])
+      .sort((a, b) => a.distance - b.distance)
     }
 
-    // Filter by rating
+    // Minimum rating filter
     results = results.filter(business => business.rating >= minRating[0])
 
     setFilteredBusinesses(results)
+
+    // Save query to recent searches (only if we had a non-empty query)
+    if (q) {
+      addRecentSearch(searchQuery)
+    }
+
+    // Close overlay and scroll to results for a smooth flow on mobile
+    if (closeOverlayOnSearch) {
+      try { setSearchOverlayOpen(false) } catch {}
+      try { scrollToSearch() } catch {}
+    }
   }
 
   const handleBusinessSelect = (business: UiBusiness) => {
@@ -538,7 +713,7 @@ function LocalBusinessSearchContent() {
                 size="icon"
                 aria-label="Open search"
                 className="rounded-full sm:hidden"
-                onClick={() => setSearchSheetOpen(true)}
+                onClick={() => setSearchOverlayOpen(true)}
               >
                 <Search className="h-5 w-5" />
               </Button>
@@ -591,7 +766,7 @@ function LocalBusinessSearchContent() {
                 size="icon"
                 aria-label="Open search"
                 className="rounded-full"
-                onClick={() => setSearchSheetOpen(true)}
+                onClick={() => setSearchOverlayOpen(true)}
               >
                 <Search className="h-5 w-5" />
               </Button>
@@ -656,62 +831,112 @@ function LocalBusinessSearchContent() {
         </div>
       </header>
 
-      {/* Mobile Search Sheet */}
-      <Sheet open={searchSheetOpen} onOpenChange={setSearchSheetOpen}>
-        <SheetContent side="bottom" className="sm:max-w-xl sm:mx-auto rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>Search businesses</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-4">
-            <div>
-              <SearchAutocomplete
-                businesses={allBusinesses as any}
-                value={searchQuery}
-                onChange={setSearchQuery}
-                onBusinessSelect={handleBusinessSelect as any}
-                onCategorySelect={handleCategorySelect}
-                placeholder="Search businesses, services..."
-              />
-            </div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="City or region"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="pl-9 h-11 text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={getCurrentLocation}
-                disabled={gettingLocation}
-                variant="outline"
-                className="h-11 flex-1 border-gray-300 hover:bg-gray-50 text-gray-700"
+      {/* Mobile Search Top Overlay (like sample) */}
+      {searchOverlayOpen && (
+        <div className="sm:hidden fixed inset-x-0 top-0 z-50 bg-white border-b border-gray-200">
+          <div className="pt-[env(safe-area-inset-top)]" />
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Search className="h-5 w-5" />
+                </span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="What are you looking for?"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
+                  className="w-full h-11 pl-10 pr-10 rounded-none border-0 border-b border-gray-300 focus:border-gray-400 focus:ring-0 text-[15px] placeholder:text-gray-400"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setSearchOverlayOpen(false)}
+                className="p-2 text-gray-500 hover:text-gray-800"
               >
-                {gettingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
-                <span className="ml-2">Near Me</span>
-              </Button>
-              <Button
-                onClick={() => { handleSearch(); setSearchSheetOpen(false); }}
-                className="h-11 flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold"
-              >
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Button>
+                <X className="h-6 w-6" />
+              </button>
             </div>
+            {/* Category tabs */}
+            <div className="mt-3 overflow-x-auto">
+              <div className="flex gap-5 text-sm text-gray-700">
+                {categories.slice(0, 6).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => { setCategory(cat); handleSearch(); }}
+                    className={`pb-2 whitespace-nowrap ${category === cat ? 'border-b-2 border-gray-800 font-semibold' : 'text-gray-500'}`}
+                  >
+                    {cat === 'all' ? 'All' : cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent searches (when no query) */}
+            {!searchQuery.trim() && recentSearches.length > 0 && (
+              <div className="mt-3">
+                <div className="text-xs text-gray-500 mb-2">Recent searches</div>
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => { setSearchQuery(r); handleSearch(); }}
+                      className="px-3 py-1.5 rounded-full border text-xs border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100"
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Live suggestions (when typing) */}
+            {searchQuery.trim() && liveSuggestions.length > 0 && (
+              <div className="mt-3 -mx-4 px-4 pb-2 max-h-72 overflow-y-auto">
+                <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl">
+                  {liveSuggestions.map((b) => (
+                    <li key={b.id}>
+                      <button
+                        onClick={() => { setSearchQuery(b.name); handleSearch(); }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50"
+                      >
+                        <div className="font-medium text-gray-900 text-sm">{b.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {b.category}
+                          {b.address ? ` • ${b.address}` : ''}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Unified Hero (single image with combined messaging) */}
         <div className="relative overflow-hidden rounded-3xl mb-8 shadow-2xl h-[340px] sm:h-[420px] lg:h-[520px] pb-2">
-          <img
+          <Image
             src={bannerImages[0]}
             alt="Ghana local businesses"
-            className="absolute inset-0 w-full h-full object-cover"
-            loading="eager"
+            fill
+            priority
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1200px"
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/60 to-black/30" />
           <div className="relative z-10 h-full flex items-end p-4 sm:p-10">
@@ -803,16 +1028,8 @@ function LocalBusinessSearchContent() {
               `}
             >
               <div className="space-y-6">
-                {/* Mobile: Simple trigger to open bottom sheet */}
-                <div className="sm:hidden">
-                  <Button
-                    onClick={() => setSearchSheetOpen(true)}
-                    className="w-full h-12 justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold"
-                  >
-                    <Search className="h-5 w-5 mr-2" />
-                    Open Search
-                  </Button>
-                </div>
+                {/* Mobile: Inputs are now inline above; keep section for anchor/filters */}
+                <div className="sm:hidden" />
 
                 {/* Desktop/Tablet: Full Search Row */}
                 <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -981,6 +1198,14 @@ function LocalBusinessSearchContent() {
               </div>
             )}
 
+            {/* Results Count */}
+            <div className="mb-4">
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                <Building2 className="w-4 h-4" />
+                {filteredBusinesses.length} {filteredBusinesses.length === 1 ? 'result' : 'results'}
+              </span>
+            </div>
+
             {/* Business Listings */}
             {viewMode === 'list' ? (
               <div className="grid grid-cols-1 gap-6">
@@ -1002,20 +1227,24 @@ function LocalBusinessSearchContent() {
                     >
                       {business.images && business.images.length > 1 ? (
                         <div className="relative w-full h-full">
-                          <img
+                          <Image
                             src={business.images[0] || business.image || "/placeholder.svg"}
                             alt={business.name}
-                            className="w-full h-full object-cover sm:rounded-l-lg"
+                            fill
+                            sizes="(max-width: 640px) 100vw, 320px"
+                            className="object-cover sm:rounded-l-lg"
                           />
                           <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">
                             +{business.images.length - 1}
                           </div>
                         </div>
                       ) : (
-                        <img
+                        <Image
                           src={business.image || "/placeholder.svg"}
                           alt={business.name}
-                          className="w-full h-full object-cover sm:rounded-l-lg"
+                          fill
+                          sizes="(max-width: 640px) 100vw, 320px"
+                          className="object-cover sm:rounded-l-lg"
                         />
                       )}
                     </div>
@@ -1104,6 +1333,13 @@ function LocalBusinessSearchContent() {
                 <BusinessMap businesses={filteredBusinesses as any} />
               </div>
             )}
+
+            {/* Load More for incremental fetch */}
+            <div className="mt-6 flex justify-center">
+              <Button onClick={handleLoadMore} disabled={loadingMore} variant="outline">
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </Button>
+            </div>
 
             {/* Gallery Modal */}
             {galleryOpen && selectedBusiness && (

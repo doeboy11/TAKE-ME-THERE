@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Image from 'next/image'
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 
@@ -13,6 +14,7 @@ interface BusinessGalleryProps {
 
 export function BusinessGallery({ images, businessName, isOpen, onClose }: BusinessGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [imgError, setImgError] = useState(false)
 
   if (!isOpen || !images.length) return null
 
@@ -23,6 +25,11 @@ export function BusinessGallery({ images, businessName, isOpen, onClose }: Busin
   const prevImage = () => {
     setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
   }
+
+  // Reset error state when image index changes
+  useEffect(() => {
+    setImgError(false)
+  }, [currentIndex])
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50" onClick={onClose}>
@@ -36,15 +43,14 @@ export function BusinessGallery({ images, businessName, isOpen, onClose }: Busin
           <X className="w-4 h-4" />
         </Button>
 
-        <div className="relative">
-          <img
-            src={images[currentIndex] || "/placeholder.svg"}
+        <div className="relative w-full h-[70vh]">
+          <Image
+            src={imgError ? "/placeholder.svg?height=400&width=600&text=Image+Not+Found" : (images[currentIndex] || "/placeholder.svg")}
             alt={`${businessName} - Photo ${currentIndex + 1}`}
-            className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.src = "/placeholder.svg?height=400&width=600&text=Image+Not+Found"
-            }}
+            fill
+            sizes="100vw"
+            className="object-contain rounded-lg"
+            onError={() => setImgError(true)}
           />
 
           {images.length > 1 && (

@@ -8,9 +8,10 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-    // Allow images served from Supabase Storage
+    // Allow images served from Supabase Storage and Unsplash
     domains: [
       'zsypjqjmdkamowykryiy.supabase.co',
+      'images.unsplash.com',
     ],
     // Alternatively, you can use remotePatterns instead of domains:
     // remotePatterns: [

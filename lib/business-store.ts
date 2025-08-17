@@ -15,11 +15,6 @@
 
 import { supabase } from './supabaseClient'
 
-// Debug: Check if environment variables are loaded
-console.log('🔍 Checking Supabase configuration...')
-console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing')
-console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing')
-
 export interface Business {
   id: string
   name: string
@@ -366,7 +361,8 @@ class BusinessStore {
       }
 
       // Transform the data to include images array with public URLs
-      const businessesWithImages = (data || []).map((business: any) => {
+      const rows = (data as any[]) || []
+      const businessesWithImages = rows.map((business: any) => {
         const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || [];
         const image = business.business_images?.find((img: any) => img.is_primary)?.image_url;
         return {
@@ -376,10 +372,10 @@ class BusinessStore {
           lng: business.longitude,
           images,
           image: getBusinessImageUrl(image)
-        }
+        } as Business
       })
 
-      return businessesWithImages
+      return businessesWithImages as Business[]
     } catch (error) {
       console.error('Error fetching businesses:', error)
       return []
@@ -414,13 +410,15 @@ class BusinessStore {
         `)
         .eq('approval_status', 'approved')
         .order('created_at', { ascending: false })
+        .limit(30)
 
       if (error) {
         console.error('Error fetching approved businesses:', error)
         return []
       }
 
-      const businessesWithImages = (data || []).map((business: any) => {
+      const rows = (data as any[]) || []
+      const businessesWithImages = rows.map((business: any) => {
         const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || [];
         const image = business.business_images?.find((img: any) => img.is_primary)?.image_url;
         return {
@@ -430,12 +428,69 @@ class BusinessStore {
           lng: business.longitude,
           images,
           image: getBusinessImageUrl(image)
-        };
+        } as Business;
       });
 
-      return businessesWithImages
+      return businessesWithImages as Business[]
     } catch (error) {
-      console.error('Error fetching approved businesses:', error)
+      console.error('Exception fetching approved businesses:', error)
+      return []
+    }
+  }
+
+  /**
+   * Paginated fetch of approved businesses to avoid large initial payloads.
+   */
+  async getApprovedBusinessesPage(page: number = 0, pageSize: number = 30): Promise<Business[]> {
+    try {
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      const { data, error } = await supabase
+        .from('businesses')
+        .select(`
+          id,
+          name,
+          category,
+          description,
+          address,
+          phone,
+          hours,
+          latitude,
+          longitude,
+          owner_email,
+          owner_name,
+          email,
+          approval_status,
+          created_at,
+          updated_at,
+          business_images (image_url, is_primary)
+        `)
+        .eq('approval_status', 'approved')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) {
+        console.error('Error fetching approved businesses (paged):', error)
+        return []
+      }
+
+      const rows = (data as any[]) || []
+      const businessesWithImages = rows.map((business: any) => {
+        const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || []
+        const image = business.business_images?.find((img: any) => img.is_primary)?.image_url
+        return {
+          ...business,
+          price_range: business.price_range || '',
+          lat: business.latitude,
+          lng: business.longitude,
+          images,
+          image: getBusinessImageUrl(image)
+        } as Business
+      })
+
+      return businessesWithImages as Business[]
+    } catch (error) {
+      console.error('Exception fetching approved businesses (paged):', error)
       return []
     }
   }
@@ -472,7 +527,8 @@ class BusinessStore {
         return []
       }
 
-      const businessesWithImages = (data || []).map((business: any) => {
+      const rows = (data as any[]) || []
+      const businessesWithImages = rows.map((business: any) => {
         const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || [];
         const image = business.business_images?.find((img: any) => img.is_primary)?.image_url;
         return {
@@ -482,11 +538,11 @@ class BusinessStore {
           lng: business.longitude,
           images,
           image: getBusinessImageUrl(image)
-        };
+        } as Business;
       });
 
       console.log('🔍 getPendingBusinesses transformed result:', businessesWithImages)
-      return businessesWithImages
+      return businessesWithImages as Business[]
     } catch (error) {
       console.error('Error fetching pending businesses:', error)
       return []
@@ -507,7 +563,8 @@ class BusinessStore {
         return []
       }
 
-      return data || []
+      const rows = (data as any[]) || []
+      return rows as unknown as Business[]
     } catch (error) {
       console.error('Error fetching rejected businesses:', error)
       return []
@@ -600,13 +657,14 @@ class BusinessStore {
       }
 
       // Transform the data to include images array with public URLs
-      const businessWithImages = data ? {
-        ...data,
-        lat: data.latitude,
-        lng: data.longitude,
-        images: data.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || [],
-        image: getBusinessImageUrl(data.business_images?.find((img: any) => img.is_primary)?.image_url || "/placeholder.svg")
-      } : null
+      const d = data as any
+      const businessWithImages = d ? ({
+        ...d,
+        lat: d.latitude,
+        lng: d.longitude,
+        images: d.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || [],
+        image: getBusinessImageUrl(d.business_images?.find((img: any) => img.is_primary)?.image_url || "/placeholder.svg")
+      } as Business) : null
 
       return { data: businessWithImages, error: null }
     } catch (error) {
@@ -686,7 +744,7 @@ class BusinessStore {
         return true
       })
 
-      const businessesWithImages = deduped.map((business: any) => {
+      const businessesWithImages = (deduped as any[]).map((business: any) => {
         const images = business.business_images?.map((img: any) => getBusinessImageUrl(img.image_url)) || []
         const image = business.business_images?.find((img: any) => img.is_primary)?.image_url
         return {
@@ -696,10 +754,10 @@ class BusinessStore {
           lng: business.longitude,
           images,
           image: getBusinessImageUrl(image)
-        }
+        } as Business
       })
 
-      return { data: businessesWithImages, error: null }
+      return { data: businessesWithImages as Business[], error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -718,7 +776,8 @@ class BusinessStore {
         return { data: null, error }
       }
 
-      return { data: data || [], error: null }
+      const rows = (data as any[]) || []
+      return { data: rows as unknown as Review[], error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -746,7 +805,7 @@ class BusinessStore {
       // Update business rating and review count
       await this.updateBusinessRating(reviewData.business_id)
 
-      return { data, error: null }
+      return { data: (data as unknown as Review), error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -775,10 +834,13 @@ class BusinessStore {
 
       // Update business rating and review count
       if (data) {
-        await this.updateBusinessRating(data.business_id)
+        const r = data as any
+        if (r?.business_id) {
+          await this.updateBusinessRating(String(r.business_id))
+        }
       }
 
-      return { data, error: null }
+      return { data: (data as unknown as Review), error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -803,8 +865,9 @@ class BusinessStore {
       }
 
       // Update business rating and review count
-      if (review) {
-        await this.updateBusinessRating(review.business_id)
+      const bizId = (review as { business_id: string } | null)?.business_id
+      if (bizId) {
+        await this.updateBusinessRating(bizId)
       }
 
       return { error: null }
@@ -815,14 +878,20 @@ class BusinessStore {
 
   async voteReview(reviewId: string, userId: string, isHelpful: boolean): Promise<{ error: any }> {
     try {
-      // For now, just update helpful votes count
+      // Read-modify-write to adjust helpful_votes safely
+      const { data: current } = await supabase
+        .from('reviews')
+        .select('helpful_votes')
+        .eq('id', reviewId)
+        .single()
+
+      const cur = (current as any)?.helpful_votes ?? 0
+      const delta = isHelpful ? 1 : -1
+      const next = Math.max(0, Number(cur) + delta)
+
       const { error } = await supabase
         .from('reviews')
-        .update({ 
-          helpful_votes: supabase.rpc('increment', { 
-            row: { helpful_votes: isHelpful ? 1 : -1 } 
-          })
-        })
+        .update({ helpful_votes: next })
         .eq('id', reviewId)
 
       return { error }
@@ -839,16 +908,17 @@ class BusinessStore {
         .select('rating')
         .eq('business_id', businessId)
 
-      if (reviews && reviews.length > 0) {
-        const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0)
-        const averageRating = totalRating / reviews.length
+      const rows = (reviews as { rating: number }[]) || []
+      if (rows.length > 0) {
+        const totalRating = rows.reduce((sum, review) => sum + (Number(review.rating) || 0), 0)
+        const averageRating = totalRating / rows.length
 
         // Update business rating and review count
         await supabase
           .from('businesses')
           .update({ 
             rating: Math.round(averageRating * 10) / 10,
-            review_count: reviews.length
+            review_count: rows.length
           })
           .eq('id', businessId)
       }
