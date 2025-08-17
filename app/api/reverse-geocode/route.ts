@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Ensure this route runs on Node.js runtime (not Edge)
+export const runtime = 'nodejs'
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
