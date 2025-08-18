@@ -173,6 +173,23 @@ export function BusinessLogin({ onClose }: BusinessLoginProps) {
                   {isLoading ? "Signing in..." : "Sign in"}
                 </Button>
               </div>
+
+              {/* Extra visible link for better discoverability on homepage modal */}
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => {
+                    setShowForgot(true)
+                    setForgotSubmitted(false)
+                    setForgotError("")
+                    setForgotEmail(email)
+                  }}
+                  className="text-sm"
+                >
+                  Forgot password?
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="signup" className="space-y-4">
