@@ -11,11 +11,23 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Building2, User, Shield } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Logo from "@/components/logo"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+// Helper to build a safe redirect URL for Supabase reset flow
+const getRedirectUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL
+  if (envUrl) return `${envUrl.replace(/\/$/, '')}/reset-password`
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/reset-password`
+  }
+  return 'https://mydomain.com/reset-password'
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [signupEmail, setSignupEmail] = useState("")
@@ -25,6 +37,12 @@ export default function LoginPage() {
   const [signupSuccess, setSignupSuccess] = useState("")
   const [activeTab, setActiveTab] = useState("login")
   const { login, signup, isLoading } = useAuth()
+
+  // Inline Forgot Password state
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState("")
+  const [forgotSubmitted, setForgotSubmitted] = useState(false)
+  const [forgotLoading, setForgotLoading] = useState(false)
 
   const handleLogin = async () => {
     setError("")
@@ -44,6 +62,27 @@ export default function LoginPage() {
       setTimeout(() => { try { window.location.assign(target) } catch {} }, 50)
     } else {
       setError("Invalid credentials. Please try again.")
+      // After a failed sign-in, reveal the inline Forgot Password panel
+      setShowForgot(true)
+      setForgotSubmitted(false)
+      setForgotEmail(email)
+    }
+  }
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (forgotLoading) return
+    setForgotLoading(true)
+    try {
+      await supabase.auth.resetPasswordForEmail((forgotEmail || email).trim(), {
+        redirectTo: getRedirectUrl(),
+      })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('resetPasswordForEmail error', err)
+    } finally {
+      setForgotSubmitted(true)
+      setForgotLoading(false)
     }
   }
 
@@ -72,6 +111,14 @@ export default function LoginPage() {
           <CardDescription>Sign in to manage your business or access admin features</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Password reset success banner */}
+          {searchParams?.get("resetSuccess") === "1" && (
+            <div className="mb-4">
+              <Alert>
+                <AlertDescription>Your password has been updated. You can sign in now.</AlertDescription>
+              </Alert>
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Sign In</TabsTrigger>
@@ -115,6 +162,61 @@ export default function LoginPage() {
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </div>
+
+              <div className="text-center">
+                <Button
+                  variant="link"
+                  onClick={() => { setShowForgot(true); setForgotSubmitted(false); setForgotEmail(email); }}
+                  className="text-sm"
+                >
+                  Forgot password?
+                </Button>
+              </div>
+
+              {/* Forgot Password modal dialog */}
+              <Dialog open={showForgot} onOpenChange={setShowForgot}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Reset your password</DialogTitle>
+                    <DialogDescription>
+                      Enter your email to receive a password reset link.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {!forgotSubmitted ? (
+                    <form onSubmit={handleForgotSubmit} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email">Email</Label>
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setShowForgot(false)}>Cancel</Button>
+                        <Button type="submit" disabled={forgotLoading || !forgotEmail}>
+                          {forgotLoading ? 'Sending…' : 'Send reset link'}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  ) : (
+                    <>
+                      <Alert>
+                        <AlertDescription>
+                          If the account exists, a reset link has been sent to the email address provided. Please check your inbox and spam folder.
+                        </AlertDescription>
+                      </Alert>
+                      <DialogFooter>
+                        <Button onClick={() => setShowForgot(false)}>Close</Button>
+                      </DialogFooter>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
 
               <div className="text-center">
                 <Button
