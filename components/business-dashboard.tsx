@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Edit, Trash2, Star, MapPin, Phone, Clock, Globe, Mail, Users, Calendar, Home, CheckCircle, XCircle, AlertCircle, Clock as ClockIcon } from "lucide-react"
 import Logo from './logo'
 import { businessStore } from "@/lib/business-store"
+import imageCompression from 'browser-image-compression'
 
 interface Business {
   id: string
@@ -634,8 +635,33 @@ export function BusinessDashboard() {
         const file = files[i]
         if (!file || !file.type.startsWith("image/")) continue
 
+        // Compress on the client to stay under the 5MB API limit
+        let toUpload: File = file
+        try {
+          const options = {
+            maxSizeMB: 1, // target ~1MB
+            maxWidthOrHeight: 1024,
+            useWebWorker: true,
+            initialQuality: 0.8,
+          }
+          if (file.size > 1024 * 1024) {
+            const compressed = await imageCompression(file, options)
+            // Ensure we preserve a filename
+            toUpload = new File([compressed], file.name, { type: compressed.type || file.type })
+          }
+        } catch (e) {
+          console.error('Image compression failed. Using original file.', e)
+          toUpload = file
+        }
+
+        // Final guard: if still >5MB, skip and notify
+        if (toUpload.size > 5 * 1024 * 1024) {
+          setFormError('File is too large even after compression. Please choose a smaller image (under 5MB).')
+          continue
+        }
+
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', toUpload, toUpload.name || file.name)
 
         const res = await fetch('/api/upload', { method: 'POST', body: form })
         let result: any = null

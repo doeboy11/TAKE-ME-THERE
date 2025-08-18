@@ -10,11 +10,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, ArrowLeft, Upload, CheckCircle } from "lucide-react"
 import Link from "next/link"
+import imageCompression from "browser-image-compression"
+import { businessStore } from "@/lib/business-store"
 
 export default function BusinessRegistrationPage() {
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -79,12 +86,81 @@ export default function BusinessRegistrationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    setIsSubmitting(false)
-    setIsSubmitted(true)
+    setUploadError(null)
+    try {
+      // 1) Optionally upload the image first (with compression)
+      let finalImageUrl: string | null = uploadedImageUrl
+      if (imageFile && !uploadedImageUrl) {
+        setUploading(true)
+        try {
+          const compressed = await imageCompression(imageFile, {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1024,
+            useWebWorker: true,
+            maxIteration: 10,
+            initialQuality: 0.8,
+          })
+          const uniqueName = `${Date.now()}-${imageFile.name.replace(/\s+/g, "-")}`
+          const { data, error } = await businessStore.uploadImage(uniqueName, compressed as File)
+          if (error || !data?.url) {
+            throw new Error(error?.message || "Failed to upload image")
+          }
+          finalImageUrl = data.url
+          setUploadedImageUrl(finalImageUrl)
+        } catch (err: any) {
+          setUploadError(err?.message || "Image upload failed")
+          throw err
+        } finally {
+          setUploading(false)
+        }
+      }
+
+      // 2) Create business row (minimal required + extras available on form)
+      const payload: any = {
+        name: formData.name,
+        category: formData.category,
+        description: formData.description,
+        address: formData.address,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        website: formData.website || undefined,
+        hours: formData.hours || undefined,
+        priceRange: formData.priceRange || undefined,
+        lat: formData.lat,
+        lng: formData.lng,
+        images: finalImageUrl ? [finalImageUrl] : [],
+      }
+
+      const { data, error, status } = await businessStore.create(payload)
+      if (error) {
+        const msg = (error as any)?.message || `Failed to submit (status ${status || 400})`
+        throw new Error(msg)
+      }
+
+      // 3) Success: reset form and show submitted UI
+      setFormData({
+        name: "",
+        category: "",
+        description: "",
+        address: "",
+        phone: "",
+        email: "",
+        website: "",
+        hours: "",
+        priceRange: "",
+        lat: undefined,
+        lng: undefined,
+      })
+      setPriceAmount("")
+      setImageFile(null)
+      setImagePreview(null)
+      setUploadedImageUrl(null)
+      setIsSubmitted(true)
+    } catch (err) {
+      console.error("Submit failed:", err)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
@@ -198,6 +274,44 @@ export default function BusinessRegistrationPage() {
                     </div>
                   </div>
 
+                  {/* Image Upload */}
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Business Image</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="image"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null
+                          setImageFile(f || null)
+                          setUploadedImageUrl(null)
+                          setUploadError(null)
+                          if (f) {
+                            const url = URL.createObjectURL(f)
+                            setImagePreview(url)
+                          } else {
+                            setImagePreview(null)
+                          }
+                        }}
+                        disabled={uploading || isSubmitting}
+                      />
+                      {uploading && <span className="text-sm text-gray-600">Uploading...</span>}
+                    </div>
+                    {imagePreview && (
+                      <div className="mt-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imagePreview} alt="Preview" className="h-32 w-auto rounded border" />
+                      </div>
+                    )}
+                    {uploadedImageUrl && (
+                      <p className="text-xs text-green-600">Image uploaded.</p>
+                    )}
+                    {uploadError && (
+                      <p className="text-xs text-red-600">{uploadError}</p>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="description">Description *</Label>
                     <Textarea
@@ -293,7 +407,7 @@ export default function BusinessRegistrationPage() {
 
                   <div className="pt-6">
                     <Button type="submit" disabled={isSubmitting} className="w-full">
-                      {isSubmitting ? "Submitting..." : "Submit Registration"}
+                      {isSubmitting ? "Submitting..." : uploading ? "Uploading image..." : "Submit Registration"}
                     </Button>
                   </div>
                 </form>
