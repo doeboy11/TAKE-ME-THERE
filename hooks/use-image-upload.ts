@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import imageCompression from 'browser-image-compression'
 
 export interface UploadedImage {
   url: string
@@ -32,8 +33,25 @@ export function useImageUpload(maxImages: number = 5): UseImageUploadReturn {
     setError(null)
 
     try {
+      // Compress if file is 1MB or larger
+      let workingFile: File = file
+      try {
+        if (file.size >= 1 * 1024 * 1024) {
+          const compressedBlob = await imageCompression(file, {
+            maxSizeMB: 0.9, // target under 1MB
+            maxWidthOrHeight: 1920, // reasonable dimensions for web
+            useWebWorker: true,
+            initialQuality: 0.8,
+          })
+          workingFile = new File([compressedBlob], file.name, { type: compressedBlob.type || file.type })
+        }
+      } catch (compressionErr) {
+        // Non-fatal: fall back to original file if compression fails
+        console.warn('Image compression failed, uploading original file:', compressionErr)
+      }
+
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', workingFile)
       if (businessId) {
         formData.append('businessId', businessId)
       }
@@ -53,7 +71,7 @@ export function useImageUpload(maxImages: number = 5): UseImageUploadReturn {
         url: result.url as string,
         fileName: result.fileName as string,
         path: result.path as string | undefined,
-        file,
+        file: workingFile,
       }
 
       setImages(prev => [...prev, newImage])
