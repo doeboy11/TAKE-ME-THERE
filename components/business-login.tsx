@@ -147,21 +147,6 @@ export function BusinessLogin({ onClose }: BusinessLoginProps) {
                 </Alert>
               )}
 
-              <div className="flex items-center justify-between">
-                <div className="h-5" />
-                <button
-                  type="button"
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => {
-                    setShowForgot(true)
-                    setForgotSubmitted(false)
-                    setForgotError("")
-                    setForgotEmail(email)
-                  }}
-                >
-                  Forgot password?
-                </button>
-              </div>
 
               <div className="space-y-2">
                 <Button
