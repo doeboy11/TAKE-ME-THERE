@@ -470,7 +470,13 @@ class BusinessStore {
         .range(from, to)
 
       if (error) {
-        console.error('Error fetching approved businesses (paged):', error)
+        console.error('Error fetching approved businesses (paged):', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          status: error.status,
+        })
         return []
       }
 
@@ -490,7 +496,11 @@ class BusinessStore {
 
       return businessesWithImages as Business[]
     } catch (error) {
-      console.error('Exception fetching approved businesses (paged):', error)
+      console.error('Exception fetching approved businesses (paged):', {
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       return []
     }
   }
@@ -1156,10 +1166,17 @@ class BusinessStore {
         .limit(1)
       
       if (error) {
-        console.error('❌ Supabase connection test failed:', error)
+        console.warn('⚠️ Supabase connection test failed:', {
+          message: (error as any)?.message,
+          code: (error as any)?.code,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          status: (error as any)?.status,
+          raw: error
+        })
         return {
           success: false,
-          error: error.message || 'Connection failed',
+          error: (error as any)?.message || 'Connection failed',
           details: error
         }
       }
@@ -1171,7 +1188,7 @@ class BusinessStore {
       }
       
     } catch (error) {
-      console.error('❌ Connection test exception:', error)
+      console.warn('⚠️ Connection test exception:', error)
       return {
         success: false,
         error: (error as any)?.message || 'Unknown error',
@@ -1192,10 +1209,17 @@ class BusinessStore {
         .limit(1)
       
       if (error) {
-        console.error('❌ Table structure error:', error)
+        console.warn('⚠️ Table structure error:', {
+          message: (error as any)?.message,
+          code: (error as any)?.code,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          status: (error as any)?.status,
+          raw: error
+        })
         return {
           success: false,
-          error: error.message,
+          error: (error as any)?.message || 'Table structure error',
           details: error
         }
       }
@@ -1204,7 +1228,7 @@ class BusinessStore {
       return { success: true }
       
     } catch (error) {
-      console.error('❌ Exception testing table structure:', error)
+      console.warn('⚠️ Exception testing table structure:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

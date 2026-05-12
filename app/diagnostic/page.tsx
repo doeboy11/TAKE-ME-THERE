@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, XCircle, AlertCircle, RefreshCw, Wrench } from 'lucide-react'
 import { businessStore } from '@/lib/business-store'
+import { supabase } from '@/lib/supabaseClient'
 
 interface DiagnosticResult {
   test: string
@@ -88,58 +89,67 @@ export default function DiagnosticPage() {
     }
 
     // Test 5: Create Test Business
-    updateResult('create', 'running', 'Creating test business...')
+    updateResult('create', 'running', 'Checking authentication and creating test business...')
     try {
-      const testBusiness = {
-        name: `Diagnostic Test Business ${Date.now()}`,
-        category: 'Test',
-        description: 'This is a diagnostic test business',
-        address: 'Test Address',
-        phone: '+1234567890',
-        hours: '9-5',
-        price_range: '₵₵',
-        owner_email: 'diagnostic@test.com',
-        owner_name: 'Diagnostic Test',
-        email: 'diagnostic@business.com',
-        ownerId: 'diagnostic-test-user'
-      }
-
-      const { data, error } = await businessStore.create(testBusiness)
-      
-      if (error) {
-        updateResult('create', 'fail', 'Failed to create test business', error)
-      } else if (data && data.length > 0) {
-        const createdBusiness = data[0]
-        updateResult('create', 'pass', 'Test business created successfully', { id: createdBusiness.id, approval_status: createdBusiness.approval_status })
-        
-        // Test 6: Verify in Pending List
-        updateResult('verify', 'running', 'Verifying test business appears in pending list...')
-        
-        // Wait a moment for database consistency
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        const updatedPending = await businessStore.getPendingBusinesses()
-        const testBusinessFound = updatedPending.find(b => b.id === createdBusiness.id)
-        
-        if (testBusinessFound) {
-          updateResult('verify', 'pass', 'Test business found in pending list')
-        } else {
-          updateResult('verify', 'fail', 'Test business NOT found in pending list', { 
-            created_id: createdBusiness.id, 
-            pending_count: updatedPending.length,
-            pending_ids: updatedPending.map(b => b.id)
-          })
-        }
-        
-        // Clean up test business
-        try {
-          await businessStore.delete(createdBusiness.id)
-          updateResult('cleanup', 'pass', 'Test business cleaned up')
-        } catch (cleanupError) {
-          updateResult('cleanup', 'warning', 'Could not clean up test business', cleanupError)
-        }
+      const { data: userData, error: authError } = await supabase.auth.getUser()
+      if (authError || !userData?.user?.id) {
+        updateResult('create', 'warning', 'Not authenticated - create test skipped', {
+          authError: authError?.message || null,
+          userId: userData?.user?.id || null,
+          guidance: 'Sign in to Supabase before running the create test. Alternatively, use the app login flow or inspect Supabase auth state.'
+        })
       } else {
-        updateResult('create', 'fail', 'Create returned no data')
+        const testBusiness = {
+          name: `Diagnostic Test Business ${Date.now()}`,
+          category: 'Test',
+          description: 'This is a diagnostic test business',
+          address: 'Test Address',
+          phone: '+1234567890',
+          hours: '9-5',
+          price_range: '₵₵',
+          owner_email: 'diagnostic@test.com',
+          owner_name: 'Diagnostic Test',
+          email: 'diagnostic@business.com',
+          ownerId: 'diagnostic-test-user'
+        }
+
+        const { data, error } = await businessStore.create(testBusiness)
+        
+        if (error) {
+          updateResult('create', 'fail', 'Failed to create test business', error)
+        } else if (data && data.length > 0) {
+          const createdBusiness = data[0]
+          updateResult('create', 'pass', 'Test business created successfully', { id: createdBusiness.id, approval_status: createdBusiness.approval_status })
+          
+          // Test 6: Verify in Pending List
+          updateResult('verify', 'running', 'Verifying test business appears in pending list...')
+          
+          // Wait a moment for database consistency
+          await new Promise(resolve => setTimeout(resolve, 1000))
+
+          const updatedPending = await businessStore.getPendingBusinesses()
+          const testBusinessFound = updatedPending.find(b => b.id === createdBusiness.id)
+          
+          if (testBusinessFound) {
+            updateResult('verify', 'pass', 'Test business found in pending list')
+          } else {
+            updateResult('verify', 'fail', 'Test business NOT found in pending list', { 
+              created_id: createdBusiness.id, 
+              pending_count: updatedPending.length,
+              pending_ids: updatedPending.map(b => b.id)
+            })
+          }
+          
+          // Clean up test business
+          try {
+            await businessStore.delete(createdBusiness.id)
+            updateResult('cleanup', 'pass', 'Test business cleaned up')
+          } catch (cleanupError) {
+            updateResult('cleanup', 'warning', 'Could not clean up test business', cleanupError)
+          }
+        } else {
+          updateResult('create', 'fail', 'Create returned no data')
+        }
       }
     } catch (error) {
       updateResult('create', 'fail', 'Error creating test business', error)

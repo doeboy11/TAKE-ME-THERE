@@ -16,13 +16,19 @@ A Next.js + TypeScript app for local business discovery. Users can search, filte
    yarn
    ```
 
-2. Create environment variables in a `.env.local` file:
+2. Create environment variables in a `.env.local` file.
+   You can copy `./.env.local.example` and replace the placeholders:
    ```bash
+   cp .env.local.example .env.local
+   ```
+
+3. Open `.env.local` and set your Supabase connection values:
+   ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-3. Run the dev server:
+4. Run the dev server:
    ```bash
    npm run dev
    # or
