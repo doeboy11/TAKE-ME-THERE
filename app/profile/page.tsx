@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
+import { supabase } from "@/lib/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Calendar, ArrowLeft } from "lucide-react"
+import { User, Mail, Calendar, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function ProfilePage() {
@@ -15,11 +16,28 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState(user?.name || "")
   const [email, setEmail] = useState(user?.email || "")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
-  const handleSave = () => {
-    // TODO: Implement profile update logic
-    setIsEditing(false)
-  }
+  const handleSave = useCallback(async () => {
+    if (!user?.id) return
+    setSaving(true)
+    setSaveError("")
+    setSaveSuccess(false)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, name: displayName, email, updated_at: new Date().toISOString() })
+      if (error) throw error
+      setSaveSuccess(true)
+      setIsEditing(false)
+    } catch (err: any) {
+      setSaveError(err?.message || "Failed to update profile")
+    } finally {
+      setSaving(false)
+    }
+  }, [user, displayName, email])
 
   const displayNameFallback = user?.name || user?.email?.split('@')[0] || 'User'
   const initials = displayNameFallback.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -90,15 +108,17 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
+                {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+                {saveSuccess && <p className="text-sm text-green-600">Profile updated successfully.</p>}
                 {/* Action Buttons */}
                 <div className="flex justify-end space-x-3 pt-4">
                   {isEditing ? (
                     <>
-                      <Button variant="outline" onClick={() => setIsEditing(false)}>
+                      <Button variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
                         Cancel
                       </Button>
-                      <Button onClick={handleSave}>
-                        Save Changes
+                      <Button onClick={handleSave} disabled={saving}>
+                        {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Changes'}
                       </Button>
                     </>
                   ) : (

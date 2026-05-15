@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 
 // Public paths that don't require authentication
 const PUBLIC_PATHS = [
@@ -30,6 +30,20 @@ export async function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
   
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+        },
+      },
+    }
+  )
+  
   // Skip middleware for public paths and static files
   if (
     PUBLIC_PATHS.some(path => pathname.startsWith(path)) ||
@@ -38,7 +52,6 @@ export async function middleware(req: NextRequest) {
   ) {
     // If user is already authenticated and trying to access auth pages, redirect to dashboard
       if (AUTH_PATHS.some(path => pathname.startsWith(path))) {
-        const supabase = createMiddlewareClient({ req, res })
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session) {
@@ -48,8 +61,6 @@ export async function middleware(req: NextRequest) {
       
       return res
   }
-
-  const supabase = createMiddlewareClient({ req, res })
   
   try {
     // Get the current session

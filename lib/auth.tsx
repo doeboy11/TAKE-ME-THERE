@@ -178,10 +178,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture
         });
         
-        // If this was an OAuth sign-in, redirect to dashboard
-        if (event === 'SIGNED_IN') {
-          router.push('/dashboard');
-        }
+        // Redirect only on explicit OAuth callback, not every SIGNED_IN event
+        // (prevents unwanted redirects when page refreshes while authenticated)
       } else {
         setUser(null);
       }

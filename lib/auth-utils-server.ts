@@ -1,9 +1,25 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+function createClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        },
+      },
+    }
+  )
+}
+
 export async function getUserSession() {
-  const supabase = createServerComponentClient({ cookies });
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
   const { data: { session } } = await supabase.auth.getSession();
   return session;
 }
@@ -17,7 +33,8 @@ export async function requireAuth() {
 }
 
 export async function getUserProfile(userId: string) {
-  const supabase = createServerComponentClient({ cookies });
+  const cookieStore = await cookies()
+  const supabase = createClient(cookieStore)
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')

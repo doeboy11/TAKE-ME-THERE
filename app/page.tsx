@@ -1389,9 +1389,5 @@ function LocalBusinessSearchContent() {
 }
 
 export default function LocalBusinessSearch() {
-  return (
-    <AuthProvider>
-      <LocalBusinessSearchContent />
-    </AuthProvider>
-  )
+  return <LocalBusinessSearchContent />
 }

@@ -124,7 +124,7 @@ export function useAuthState() {
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: any) => {
         if (event === 'SIGNED_IN' && session?.user) {
           const profile = await ensureProfile(session.user);
           setUser({

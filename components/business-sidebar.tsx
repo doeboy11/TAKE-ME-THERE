@@ -76,11 +76,13 @@ export function BusinessSidebar({
   const mostVisited = businessesWithStats.sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0)).slice(0, 5)
 
   const highlyRated = businessesWithStats
-    .filter((b) => b.reviewCount >= 50) // Only businesses with substantial reviews
+    .filter((b) => (b.reviewCount ?? 0) >= 50) // Only businesses with substantial reviews
     .sort((a, b) => {
       // Sort by rating first, then by review count
-      if (b.rating !== a.rating) return b.rating - a.rating
-      return b.reviewCount - a.reviewCount
+      const ratingA = a.rating ?? 0
+      const ratingB = b.rating ?? 0
+      if (ratingB !== ratingA) return ratingB - ratingA
+      return (b.reviewCount ?? 0) - (a.reviewCount ?? 0)
     })
     .slice(0, 5)
 
@@ -120,9 +122,9 @@ export function BusinessSidebar({
             <TrendingBadge isTrending={business.trending || false} />
           </div>
           <div className="flex items-center gap-1 mt-1">
-            {renderStars(business.rating)}
+            {renderStars(business.rating ?? 0)}
             <span className="text-xs text-gray-500 ml-1">
-              {business.rating} ({business.reviewCount})
+              {(business.rating ?? 0).toFixed(1)} ({business.reviewCount ?? 0})
             </span>
           </div>
           <div className="flex items-center justify-between mt-2">
@@ -309,7 +311,7 @@ export function BusinessSidebar({
                 <span className="text-sm font-medium text-yellow-900">Avg Rating</span>
               </div>
               <span className="text-lg font-bold text-yellow-600">
-                {(businesses.reduce((sum, b) => sum + b.rating, 0) / businesses.length).toFixed(1)}
+                {(businesses.reduce((sum, b) => sum + (b.rating ?? 0), 0) / Math.max(businesses.length, 1)).toFixed(1)}
               </span>
             </div>
           </div>

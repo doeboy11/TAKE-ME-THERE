@@ -78,7 +78,7 @@ export const initAuth = async (): Promise<AuthState> => {
 export const onAuthStateChange = (
   callback: (event: 'SIGNED_IN' | 'SIGNED_OUT', session: { user: User | null }) => void
 ) => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
     if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
       callback(event, { user: session?.user || null })
     }

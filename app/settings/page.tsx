@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Settings, Bell, Shield, Globe, ArrowLeft } from "lucide-react"
+import { Settings, Bell, Shield, Globe, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -18,6 +19,29 @@ export default function SettingsPage() {
   const [locationSharing, setLocationSharing] = useState(false)
   const [language, setLanguage] = useState("en")
   const [timezone, setTimezone] = useState("GMT")
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  const handleSaveSettings = useCallback(async () => {
+    if (!user?.id) return
+    setSaving(true)
+    setSaveSuccess(false)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          preferences: { notifications, emailUpdates, locationSharing, language, timezone },
+          updated_at: new Date().toISOString(),
+        })
+      if (error) throw error
+      setSaveSuccess(true)
+    } catch (err) {
+      console.error('Failed to save settings:', err)
+    } finally {
+      setSaving(false)
+    }
+  }, [user, notifications, emailUpdates, locationSharing, language, timezone])
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -156,8 +180,11 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <div className="pt-4">
-                <Button>Save Changes</Button>
+              <div className="pt-4 space-y-2">
+                {saveSuccess && <p className="text-sm text-green-600">Settings saved successfully.</p>}
+                <Button onClick={handleSaveSettings} disabled={saving}>
+                  {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : 'Save Changes'}
+                </Button>
               </div>
             </CardContent>
           </Card>

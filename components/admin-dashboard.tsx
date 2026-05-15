@@ -35,7 +35,7 @@ export function AdminDashboard() {
   const [processing, setProcessing] = useState(false)
 
   // TEMPORARY: Set this to true to grant admin access to any logged-in user for testing
-  const TEMP_ADMIN_OVERRIDE = true // Set to false in production
+  const TEMP_ADMIN_OVERRIDE = false // Set to false in production
   
   // Special admin email for dedicated admin access
   const SPECIAL_ADMIN_EMAIL = 'admin@localfind.gh'

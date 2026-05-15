@@ -118,7 +118,7 @@ export const getUserProfile = async (userId: string): Promise<{ profile: Profile
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single<Profile>()
+      .single()
     
     if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows returned
     return { profile: data as Profile | null, error: null }
@@ -145,7 +145,7 @@ const upsertUserProfile = async (user: User): Promise<{ profile: Profile | null;
       .from('profiles')
       .upsert(profileData)
       .select()
-      .single<Profile>()
+      .single()
     
     if (error) throw error
     return { profile: data as Profile, error: null }

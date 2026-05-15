@@ -103,7 +103,7 @@ export function useLiveAnalytics(businessIds: string[]): LiveAnalyticsHook {
           const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
 
           // Check if business has been searched recently and frequently
-          const recentSearches = business.lastSearched && business.lastSearched > fiveMinutesAgo
+          const recentSearches = !!(business.lastSearched && business.lastSearched > fiveMinutesAgo)
           updated[businessId] = {
             ...business,
             trending: recentSearches && business.searchCount % 50 > TRENDING_THRESHOLD,

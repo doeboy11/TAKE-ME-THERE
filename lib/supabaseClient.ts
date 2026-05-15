@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -33,13 +33,10 @@ if (supabaseAnonKey.length < 20 || supabaseAnonKey.includes('your_')) {
 }
 
 // Ensure a single client instance across HMR/browser contexts
-const globalForSupabase = globalThis as unknown as { __supabase?: ReturnType<typeof createClientComponentClient> };
+const globalForSupabase = globalThis as unknown as { __supabase?: ReturnType<typeof createBrowserClient> };
 
 export const supabase =
-  globalForSupabase.__supabase ?? createClientComponentClient({
-    supabaseUrl,
-    supabaseKey: supabaseAnonKey,
-  });
+  globalForSupabase.__supabase ?? createBrowserClient(supabaseUrl!, supabaseAnonKey!);
 
 if (process.env.NODE_ENV !== 'production') {
   globalForSupabase.__supabase = supabase;

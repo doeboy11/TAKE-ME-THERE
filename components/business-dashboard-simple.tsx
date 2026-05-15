@@ -71,8 +71,28 @@ export function BusinessDashboardSimple() {
     setLoading(true)
     try {
       // Get all businesses and filter by owner email
-      const allBusinesses = businessStore.getAllBusinesses()
-      const userBusinesses = allBusinesses.filter(b => b.owner_email === user.email)
+      const allBusinesses = await businessStore.getAllBusinesses()
+      const userBusinesses: UserBusiness[] = allBusinesses
+        .filter(b => b.owner_email === user.email)
+        .map(b => ({
+          id: b.id,
+          name: b.name,
+          category: b.category,
+          rating: b.rating || 0,
+          reviewCount: b.reviewCount || 0,
+          address: b.address,
+          phone: b.phone,
+          hours: b.hours,
+          description: b.description,
+          priceRange: b.price_range || '₵',
+          owner_email: b.owner_email,
+          images: b.images,
+          website: b.website,
+          email: b.email,
+          approval_status: b.approval_status,
+          created_at: b.created_at,
+          owner_name: b.owner_name,
+        }))
       setBusinesses(userBusinesses)
     } catch (error) {
       console.error('Error fetching businesses:', error)
@@ -95,16 +115,14 @@ export function BusinessDashboardSimple() {
 
     try {
       if (editingBusiness) {
-        // Update existing business
-        // For now, we'll just show success since we don't have update functionality
+        const { error } = await businessStore.update({ ...formData, id: editingBusiness.id })
+        if (error) throw new Error(error?.message || 'Failed to update business')
         setFormSuccess("Business updated successfully!")
         setEditingBusiness(null)
       } else {
         // Create new business
         const newBusiness = {
           ...formData,
-          rating: 0,
-          reviewCount: 0,
           images: [],
           lat: 5.5563, // Default to Accra coordinates
           lng: -0.1969,
@@ -112,8 +130,8 @@ export function BusinessDashboardSimple() {
           owner_name: user?.email?.split('@')[0] || formData.owner_name
         }
 
-        const businessId = businessStore.addBusiness(newBusiness)
-        console.log('New business created with ID:', businessId)
+        const { data, error } = await businessStore.create(newBusiness)
+        if (error) throw new Error(error?.message || 'Failed to create business')
         
         setFormSuccess("Business created successfully! It's now pending approval.")
         
@@ -163,9 +181,14 @@ export function BusinessDashboardSimple() {
 
   const handleDelete = async (businessId: string) => {
     if (confirm("Are you sure you want to delete this business?")) {
-      // For now, we'll just remove from the list
-      // In a real implementation, you'd call businessStore.deleteBusiness(businessId)
-      setBusinesses(prev => prev.filter(b => b.id !== businessId))
+      try {
+        const { error } = await businessStore.delete(businessId)
+        if (error) throw new Error(error?.message || 'Failed to delete business')
+        setBusinesses(prev => prev.filter(b => b.id !== businessId))
+      } catch (error) {
+        console.error('Error deleting business:', error)
+        setFormError("Failed to delete business. Please try again.")
+      }
     }
   }
 
