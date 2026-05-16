@@ -1236,6 +1236,48 @@ class BusinessStore {
       }
     }
   }
+
+  async isFavorite(userId: string, businessId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('business_id', businessId)
+        .maybeSingle()
+      if (error) throw error
+      return !!data
+    } catch (err) {
+      console.error('isFavorite error:', err)
+      return false
+    }
+  }
+
+  async addFavorite(userId: string, businessId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('favorites')
+        .insert({ user_id: userId, business_id: businessId })
+      if (error) throw error
+    } catch (err) {
+      console.error('addFavorite error:', err)
+      throw err
+    }
+  }
+
+  async removeFavorite(userId: string, businessId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('business_id', businessId)
+      if (error) throw error
+    } catch (err) {
+      console.error('removeFavorite error:', err)
+      throw err
+    }
+  }
 }
 
 // Create singleton instance

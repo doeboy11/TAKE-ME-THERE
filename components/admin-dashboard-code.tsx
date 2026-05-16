@@ -6,18 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle, XCircle, AlertCircle, Clock, Eye, MapPin, Phone, Mail, Globe, Shield, LogOut, Home, Building } from "lucide-react"
+import { CheckCircle, XCircle, AlertCircle, Clock, Eye, MapPin, Phone, Mail, Globe, LogOut, Home, Building, Lock } from "lucide-react"
 import Logo from './logo'
 import { businessStore } from "@/lib/business-store"
-import { supabase } from "@/lib/supabaseClient"
 
 import type { Business } from "@/lib/business-store"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+// Admin credentials (change these to your desired credentials)
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@localfind.com"
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "admin123"
 
 export function AdminDashboardCode() {
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [passwordVerified, setPasswordVerified] = useState(false)
+  const [emailInput, setEmailInput] = useState("")
+  const [passwordInput, setPasswordInput] = useState("")
+  const [loginError, setLoginError] = useState("")
   const [pendingBusinesses, setPendingBusinesses] = useState<Business[]>([])
   const [approvedBusinesses, setApprovedBusinesses] = useState<Business[]>([])
   const [rejectedBusinesses, setRejectedBusinesses] = useState<Business[]>([])
@@ -33,38 +39,19 @@ export function AdminDashboardCode() {
     total: 0
   })
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const { data } = await supabase.auth.getUser()
-        const user = data.user
-
-        if (!user) {
-          setIsAdmin(false)
-          return
-        }
-        const role = (user.app_metadata as any)?.role || (user.user_metadata as any)?.role
-        // Allow role-based admin only
-        if (role === 'admin') {
-          setIsAdmin(true)
-        } else {
-          setIsAdmin(false)
-        }
-      } catch (error) {
-        console.error('Error checking admin role:', error)
-        setIsAdmin(false)
-      } finally {
-        setIsLoading(false)
-      }
+  const handleLoginSubmit = () => {
+    if (emailInput === ADMIN_EMAIL && passwordInput === ADMIN_PASSWORD) {
+      setPasswordVerified(true)
+      setLoginError("")
+    } else {
+      setLoginError("Invalid email or password")
     }
-    checkAdmin()
-  }, [])
+  }
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut()
-    } catch {}
-    window.location.href = "/login"
+  const handleLogout = () => {
+    setPasswordVerified(false)
+    setPasswordInput("")
+    setEmailInput("")
   }
 
   const fetchPendingBusinesses = async () => {
@@ -103,44 +90,84 @@ export function AdminDashboardCode() {
   }
 
   useEffect(() => {
-    if (isAdmin) {
+    if (passwordVerified) {
       fetchAllBusinesses()
     }
-  }, [isAdmin])
+  }, [passwordVerified])
+
+  // Login screen
+  if (!passwordVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="p-3 bg-gray-100 rounded-full">
+                <Lock className="h-8 w-8 text-gray-700" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Admin Login</CardTitle>
+            <CardDescription>Sign in with admin credentials</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                type="email"
+                placeholder="Admin email"
+                value={emailInput}
+                onChange={(e) => { setEmailInput(e.target.value); setLoginError("") }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleLoginSubmit() }}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder="Admin password"
+                value={passwordInput}
+                onChange={(e) => { setPasswordInput(e.target.value); setLoginError("") }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleLoginSubmit() }}
+              />
+            </div>
+            {loginError && (
+              <Alert variant="destructive">
+                <AlertDescription>{loginError}</AlertDescription>
+              </Alert>
+            )}
+            <Button onClick={handleLoginSubmit} className="w-full">
+              <Lock className="h-4 w-4 mr-2" />
+              Sign In
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={() => window.location.href = "/"}>
+              Back to Home
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleApprove = async (businessId: string) => {
     setProcessing(true)
     try {
-      console.log('Attempting to approve business via Supabase UPDATE:', businessId)
-      const payload: any = {
-        approval_status: 'approved',
-        admin_notes: adminNotes || null,
-      }
-      const { data, error } = await supabase
-        .from('businesses')
-        .update(payload)
-        .eq('id', businessId)
-        .select('*')
-
-      if (error) {
-        console.error('Supabase approve UPDATE error:', error, 'details:', (error as any)?.message || JSON.stringify(error))
+      const res = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, status: 'approved', notes: adminNotes || null }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        console.error('Approve error:', result.error)
         return
       }
-
-      // Optimistic local state update to reflect immediately
       setPendingBusinesses(prev => prev.filter(b => b.id !== businessId))
-      setApprovedBusinesses(prev => {
-        const updated = (data as any[] && data.length > 0) ? (data[0] as Business) : (pendingBusinesses.find(b => b.id === businessId) as Business)
-        // Ensure status fields reflect change in UI
-        if (updated) {
-          (updated as any).approval_status = 'approved'
-          ;(updated as any).status = 'Approved'
-        }
-        return updated ? [updated, ...prev] : prev
-      })
-      // Refresh counts in background
+      const updated = (result.data as any[])?.[0] || pendingBusinesses.find(b => b.id === businessId)
+      if (updated) {
+        (updated as any).approval_status = 'approved'
+        ;(updated as any).status = 'Approved'
+      }
+      setApprovedBusinesses(prev => updated ? [updated, ...prev] : prev)
       void fetchAllBusinesses()
-      console.log(`Business ${businessId} approved`)
     } catch (error) {
       console.error('Error approving business:', error)
     } finally {
@@ -151,35 +178,24 @@ export function AdminDashboardCode() {
   const handleReject = async (businessId: string) => {
     setProcessing(true)
     try {
-      console.log('Attempting to reject business via Supabase UPDATE:', businessId)
-      const payload: any = {
-        approval_status: 'rejected',
-        admin_notes: adminNotes || null,
-      }
-      const { data, error } = await supabase
-        .from('businesses')
-        .update(payload)
-        .eq('id', businessId)
-        .select('*')
-
-      if (error) {
-        console.error('Supabase reject UPDATE error:', error, 'details:', (error as any)?.message || JSON.stringify(error))
+      const res = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, status: 'rejected', notes: adminNotes || null }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        console.error('Reject error:', result.error)
         return
       }
-
-      // Optimistic local state update to reflect immediately
       setPendingBusinesses(prev => prev.filter(b => b.id !== businessId))
-      setRejectedBusinesses(prev => {
-        const updated = (data as any[] && data.length > 0) ? (data[0] as Business) : (pendingBusinesses.find(b => b.id === businessId) as Business)
-        if (updated) {
-          (updated as any).approval_status = 'rejected'
-          ;(updated as any).status = 'Rejected'
-        }
-        return updated ? [updated, ...prev] : prev
-      })
-      // Refresh counts in background
+      const updated = (result.data as any[])?.[0] || pendingBusinesses.find(b => b.id === businessId)
+      if (updated) {
+        (updated as any).approval_status = 'rejected'
+        ;(updated as any).status = 'Rejected'
+      }
+      setRejectedBusinesses(prev => updated ? [updated, ...prev] : prev)
       void fetchAllBusinesses()
-      console.log(`Business ${businessId} rejected`)
     } catch (error) {
       console.error('Error rejecting business:', error)
     } finally {
@@ -215,32 +231,7 @@ export function AdminDashboardCode() {
   }
 
   // Show loading while checking admin status
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Check if user is admin
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Admin Access Required</h2>
-          <p className="text-gray-600 mb-4">Please sign in with an admin account.</p>
-          <Button onClick={() => window.location.href = '/login'}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  // (removed - password verification handles access control)
 
   return (
     <div className="min-h-screen bg-gray-50">

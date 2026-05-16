@@ -7,9 +7,10 @@ interface LogoProps {
   className?: string
   asLink?: boolean
   href?: string
+  showTagline?: boolean
 }
 
-export default function Logo({ size = 'md', variant = 'default', className = '', asLink = true, href = '/' }: LogoProps) {
+export default function Logo({ size = 'md', variant = 'default', className = '', asLink = true, href = '/', showTagline }: LogoProps) {
   const textSize: Record<NonNullable<LogoProps['size']>, string> = {
     sm: 'text-base',
     md: 'text-xl',
@@ -74,6 +75,9 @@ export default function Logo({ size = 'md', variant = 'default', className = '',
           <span className="font-semibold tracking-[-0.02em]">There</span>
         </div>
         <div className="sm:hidden font-semibold tracking-tight">TMT</div>
+        {showTagline && (
+          <div className="text-xs text-muted-foreground mt-0.5">Find local businesses near you</div>
+        )}
       </div>
     </div>
   )
