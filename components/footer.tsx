@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, Mail, Phone, MapPin, Globe, Facebook, Twitter, Instagram, Linkedin } from "lucide-react"
+import { Plus, Minus, Mail, Phone, MapPin, Globe } from "lucide-react"
+import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from "react-icons/fa"
 import Logo from './logo'
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -197,7 +198,7 @@ export function Footer() {
                         onClick={() => handleLinkClick('https://facebook.com/takemetheregh')}
                         className="p-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
-                        <Facebook className="h-5 w-5" />
+                        <FaFacebook className="h-5 w-5" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -205,7 +206,7 @@ export function Footer() {
                         onClick={() => handleLinkClick('https://twitter.com/takemetheregh')}
                         className="p-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
-                        <Twitter className="h-5 w-5" />
+                        <FaTwitter className="h-5 w-5" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -213,7 +214,7 @@ export function Footer() {
                         onClick={() => handleLinkClick('https://instagram.com/takemetheregh')}
                         className="p-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
-                        <Instagram className="h-5 w-5" />
+                        <FaInstagram className="h-5 w-5" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -221,7 +222,7 @@ export function Footer() {
                         onClick={() => handleLinkClick('https://linkedin.com/company/takemetheregh')}
                         className="p-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                       >
-                        <Linkedin className="h-5 w-5" />
+                        <FaLinkedin className="h-5 w-5" />
                       </Button>
                     </div>
                     <div className="mt-3">

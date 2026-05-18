@@ -3,7 +3,8 @@
 import Link from "next/link"
 import Logo from "./logo"
 import { Button } from "@/components/ui/button"
-import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from "lucide-react"
+import { Mail, Phone, MapPin } from "lucide-react"
+import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from "react-icons/fa"
 
 const QUICK_LINKS = [
   { href: "/about", label: "About Us" },
@@ -28,22 +29,22 @@ export function SiteFooter() {
             <div className="flex gap-2">
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" asChild>
                 <a href="https://facebook.com/takemetheregh" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                  <Facebook className="h-4 w-4" />
+                  <FaFacebook className="h-4 w-4" />
                 </a>
               </Button>
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" asChild>
                 <a href="https://twitter.com/takemetheregh" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-                  <Twitter className="h-4 w-4" />
+                  <FaTwitter className="h-4 w-4" />
                 </a>
               </Button>
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" asChild>
                 <a href="https://instagram.com/takemetheregh" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                  <Instagram className="h-4 w-4" />
+                  <FaInstagram className="h-4 w-4" />
                 </a>
               </Button>
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" asChild>
                 <a href="https://linkedin.com/company/takemetheregh" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                  <Linkedin className="h-4 w-4" />
+                  <FaLinkedin className="h-4 w-4" />
                 </a>
               </Button>
             </div>
