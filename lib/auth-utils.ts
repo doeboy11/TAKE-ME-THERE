@@ -59,14 +59,22 @@ export const signUpWithEmail = async (email: string, password: string, name?: st
     
     if (error) throw error
     
-    // Update or create user profile
+    // Try to create user profile, but don't block signup if it fails
     if (data.user) {
-      await upsertUserProfile(data.user)
+      try {
+        await upsertUserProfile(data.user)
+      } catch (profileError) {
+        console.error('Profile creation failed (non-blocking):', profileError)
+      }
     }
     
     return { data, error: null }
   } catch (error) {
-    console.error('Error signing up with email:', error)
+    console.error('Error signing up with email:', {
+      message: error instanceof Error ? error.message : error,
+      code: (error as any)?.code,
+      status: (error as any)?.status,
+    })
     return { data: null, error: error as Error }
   }
 }

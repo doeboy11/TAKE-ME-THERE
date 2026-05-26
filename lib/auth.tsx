@@ -97,6 +97,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(false);
     if (error) return false;
     if (data.user) {
+      // Try to create a profile, but don't block signup if it fails
+      try {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.user_metadata?.name || name,
+          updated_at: new Date().toISOString(),
+        }).select().single();
+      } catch (profileError) {
+        console.error('Profile creation failed (non-blocking):', profileError);
+      }
       setUser({ 
         id: data.user.id, 
         email: data.user.email!,

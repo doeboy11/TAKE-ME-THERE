@@ -69,7 +69,11 @@ export function BusinessLogin({ onClose }: BusinessLoginProps) {
       setSignupError("")
       setActiveTab("login")
     } catch (error) {
-      console.error('Signup error:', error)
+      console.error('Signup error details:', {
+        message: error instanceof Error ? error.message : error,
+        code: (error as any)?.code,
+        status: (error as any)?.status,
+      })
       setSignupError("Error creating account. Please try again.")
     }
   }
