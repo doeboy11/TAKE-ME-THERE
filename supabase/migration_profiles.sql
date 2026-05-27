@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies to allow re-running safely
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can read their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Public can read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Service role has full access to profiles" ON public.profiles;
+
 -- Allow users to insert their own profile
 CREATE POLICY "Users can insert their own profile"
   ON public.profiles

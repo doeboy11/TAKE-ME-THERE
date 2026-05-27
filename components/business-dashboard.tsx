@@ -670,16 +670,36 @@ export function BusinessDashboard() {
           const errMsg = result?.error || `Upload failed with status ${res.status}`
           console.error('Error uploading image via /api/upload:', errMsg)
           setFormError(`Failed to upload image: ${errMsg}`)
+          // Remove the blob URL so form submission isn't blocked
+          setFormData((prev) => {
+            const next = prev.images.filter((_, idx) => idx !== baseIndex + i)
+            return { ...prev, images: next }
+          })
           continue
         }
 
-        if (result?.url) {
+        let imageUrl = result?.url
+        // If the API didn't return a URL directly, check for other possible fields
+        if (!imageUrl && result?.publicUrl) {
+          imageUrl = result.publicUrl
+        }
+        if (!imageUrl && result?.data?.publicUrl) {
+          imageUrl = result.data.publicUrl
+        }
+
+        if (imageUrl) {
           const targetIndex = baseIndex + i
-          console.log(`🔍 Replacing temp URL at index ${targetIndex} with: ${result.url}`)
+          console.log(`🔍 Replacing temp URL at index ${targetIndex} with: ${imageUrl}`)
           setFormData((prev) => {
             const next = [...prev.images]
-            next[targetIndex] = result.url as string
+            next[targetIndex] = imageUrl as string
             console.log('🔍 Updated images array:', next)
+            return { ...prev, images: next }
+          })
+        } else {
+          // No URL returned; remove the blob URL
+          setFormData((prev) => {
+            const next = prev.images.filter((_, idx) => idx !== baseIndex + i)
             return { ...prev, images: next }
           })
         }
